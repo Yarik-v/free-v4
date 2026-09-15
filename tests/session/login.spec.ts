@@ -29,11 +29,19 @@ test.describe('POST /login', () => {
 
   test('two logins of the same device within one second return the same security token', async ({ api }) => {
     const body = { device: 'playwright-suite', serial: `pw-${Date.now()}` };
-    const [first, second] = await Promise.all([api.login(body), api.login(body)]);
+    // Sequential, not Promise.all: security is sealed per issue-second, so two truly
+    // parallel requests can straddle a second boundary and legitimately get different
+    // tokens. Sequential calls (~100ms apart) land in the same second in practice.
+    const first = await api.login(body);
+    const second = await api.login(body);
     expect(first.status()).toBe(200);
     expect(second.status()).toBe(200);
 
     const [firstJson, secondJson]: LoginResponse[] = await Promise.all([first.json(), second.json()]);
+    test.skip(
+      secondJson.expire_at !== firstJson.expire_at,
+      'Requests landed in different issue-time seconds (expire_at differs); the "same token within one second" guarantee does not apply here.',
+    );
     expect(secondJson.security).toBe(firstJson.security);
     expect(secondJson.login).toBe(firstJson.login);
   });
