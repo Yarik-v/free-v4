@@ -1,0 +1,25 @@
+{
+  "name": "kartina-free-api-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright + TypeScript API test suite for the Kartina.TV Free API (https://pages.kartina.tv/middleware/docs/free/)",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "spec:refresh": "node scripts/fetch-openapi.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.7.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "dotenv": "^16.4.5",
+    "js-yaml": "^4.1.0",
+    "typescript": "^5.6.2"
+  }
+}

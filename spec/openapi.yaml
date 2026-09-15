@@ -1,0 +1,1651 @@
+openapi: 3.2.0
+info:
+  title: 'Free API documentation · Kartina.TV'
+  version: 4.0.0
+  description: "The public, anonymous API of the Kartina.TV free dashboard: the pages and blocks an editor\nassembles in the dashboard, the details cards of the titles they show, the streams of\nwhatever is marked free, and the radio stations. Response shapes mirror the middleware\n**API v4**, so a v4 client renders them with the same code. Paths differ only by the\n`/free/v4` prefix, and every `*_url` in a response is an absolute path with that prefix.\n\n**No authentication.** There are no accounts, sessions or cookies. `POST /login` exists\nonly for the client start-up sequence; the `security` token it returns is not required by\nany other endpoint. Per-client state (`favorite`, `progress`, hidden channels,\nsubscriptions) is always empty or fixed.\n\n**Rate limit.** 900 requests per minute per client IP address across all endpoints\n(`X-RateLimit-Limit` / `X-RateLimit-Remaining` on every response, `Retry-After` on `429`).\nOpening the dashboard costs one request for the page plus one per block, so clients behind\na shared address share the budget.\n\n**Errors** are plain JSON, `{\"message\": …}`, with the meaning in the HTTP status: `404`\nunknown or disabled, `403` not free or not available in the caller country, `422`\nvalidation, `429` rate limit. This is not the v4 `error` envelope, and the message text\nfollows the server locale.\n\n**Caching.** Pages, blocks, services, cards and stream targets are cached server-side for\nabout five minutes and refreshed as soon as the underlying entry is edited in the\ndashboard. Responses carry `Cache-Control: no-cache, private` and no `ETag`. Stream URLs\nare signed per request and must not be stored.\n\n**Geo.** A title carries the list of countries it is released in. A block drops the titles\nnot released in the caller country; the card or stream of such a title answers `403`. The\ncountry is derived from the client IP address.\n\n**CORS** is open (`Access-Control-Allow-Origin: *` unless narrowed by configuration) for\n`GET` and `POST`, with the rate-limit headers exposed to browser clients.\n"
+  contact:
+    name: Kartina.TV
+    email: team@kartina.tv
+servers:
+  -
+    url: 'https://{host}/free/v4'
+    variables:
+      host:
+        default: free-dashboard.kartina.tv
+        enum:
+          - free-dashboard.kartina.tv
+          - free-dashboard-dev.kartina.tv
+          - localhost
+security: []
+tags:
+  -
+    name: Session
+    description: 'The anonymous device sign-in and the fixed player settings.'
+    kind: nav
+  -
+    name: Catalog
+    description: 'The service list, VOD details with their free streams, and the radio stations.'
+    kind: nav
+  -
+    name: Interface
+    description: 'Pages assembled in the dashboard and the blocks they are built from.'
+    kind: nav
+  -
+    name: Blocks
+    parent: Interface
+    description: 'Page blocks: title rails, image and promo blocks, and the radio channel group.'
+  -
+    name: Content
+    parent: Catalog
+    description: 'VOD titles: the details card and the stream of whatever the dashboard marked free.'
+  -
+    name: Login
+    parent: Session
+    description: 'The anonymous device sign-in every client starts with.'
+  -
+    name: Pages
+    parent: Interface
+    description: 'Top-level screen layouts: the pages assembled in the dashboard and the configured radio page.'
+  -
+    name: Radio
+    parent: Catalog
+    description: 'Playback of the free radio stations.'
+  -
+    name: Services
+    parent: Catalog
+    description: 'The multimedia services titles come from, with their artwork and availability.'
+  -
+    name: Settings
+    parent: Session
+    description: 'Player settings, fixed on the server and identical for every device.'
+paths:
+  '/pages/{slug}/blocks/{id}':
+    get:
+      operationId: getPageBlock
+      summary: 'Retrieve a page block with its items.'
+      description: "Returns the items of a block. Block ids and `block_url`s come from `GET /pages/{slug}`.\n`{slug}` must be an existing page, but the block is resolved on its own: the same block\nanswers under any existing slug.\n\nWhat `items` holds depends on the block type:\n\n- title blocks (`slider`, `list`, `list_horizontal`, `numeric`, `action_list`):\n  `contentCard`s in dashboard order. Titles disabled in the dashboard or not released in\n  the caller's country are dropped and not counted. Cards carry `details_url`, not\n  `play_url`.\n- `images`: the image rows as stored in the dashboard (`imageCard`).\n- `promo`: no items. The promo fields come in `block_data`, present only when set.\n\n`type` is the dashboard's block type. `list_horizontal` and `numeric` keep those names\nhere, although the page layout lists them as `small_list` and `counter`.\n\nPosters of title blocks other than `slider` get a CDN `badge` (`for_free`,\n`1_series_for_free`, `2_series_for_free`, `n_series_for_free`, or `subscription` when\nnothing is free) and the provider `logo`; a `numeric` block also adds `badge_num=topN`.\nSlider posters are only resized, landscape images are never decorated.\n\nCached for about five minutes per block and geo bucket (countries seeing the same titles\nshare one entry). Refreshed when the block, its rows or any listed title is edited.\n"
+      tags:
+        - Blocks
+      parameters:
+        -
+          name: slug
+          in: path
+          required: true
+          description: 'Slug of an existing page'
+          schema:
+            type: string
+          example: dashboard
+        -
+          name: id
+          in: path
+          required: true
+          description: 'Block identifier'
+          schema:
+            type: string
+          example: d689d5b8-81a5-4231-9975-c6dc1e140b9c
+      responses:
+        '200':
+          description: 'Successful response'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/block'
+              examples:
+                titles:
+                  summary: 'list block with one title'
+                  value: { id: d689d5b8-81a5-4231-9975-c6dc1e140b9c, title: Новинки, type: list, count: 1, items: [{ id: 6a0188bc9e35a34e3a098ec7, kind: series, service: startru, title: 'Инспектор Гаврилов', description: 'Обаятельный рецидивист становится участковым в маленьком городке.', year: '2026', genres: [Комедия], runtime: 4882, ratings: { kinopoisk: 8.2, imdb: 7.5 }, images: { poster: 'https://imgcdnv2.kartina.stream/mw-epg-prod/epgservice/9957420.jpeg?action=resize&width=220&height=330&badge=1_series_for_free&logo=startru', landscape: 'https://imgcdnv2.kartina.stream/mw-epg-prod/epgservice/9957423.jpeg?action=resize&width=1280&height=720' }, playable: true, favorite: false, progress: null, details_url: /free/v4/content/startru/6a0188bc9e35a34e3a098ec7 }] }
+                images:
+                  summary: 'images block'
+                  value: { id: 4a3c1f0e-9d8b-4c7a-b6e5-d4c3b2a1f0e9, title: Афиша, type: images, count: 1, items: [{ image: 'https://imgcdnv2.kartina.stream/ui/promo/afisha-1.jpg', link: 'https://www.kartina.tv/afisha' }] }
+                promo:
+                  summary: 'promo block'
+                  value: { id: 88555543-e22f-4c6f-8c6e-afb939e626af, title: 'Смотрите больше', type: promo, count: 0, items: [], block_data: { title: 'Смотрите больше', description: 'Тысячи фильмов и сериалов по подписке.', image: 'https://imgcdnv2.kartina.stream/ui/promo/subscription.jpg', url: 'https://www.kartina.tv/subscription', subscription_type: vod } }
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '404':
+          description: 'No such page or no such block (HTTP 404). The message follows the server locale: `Страница не найдена` in Russian (production), `Page not found` in English.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              example:
+                message: 'Страница не найдена'
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  /pages/radio/channel-group:
+    get:
+      operationId: getRadioChannelGroupBlock
+      summary: 'Retrieve the radio channel-group block.'
+      description: "The only block of the radio page: the configured stations as `radioCard`s, in configured\norder. Same shape as the middleware radio block minus the account parts: `favorite` is\nalways false, `access.hidden` is the configured value and there is no `favorite_url`.\n\nOnly stations marked free in the configuration are `playable` and carry `play_url` (`GET\n/channels/{channel}/play`); the rest are listed for display only. Logos are resized to\n200×200, backgrounds to 1280×720. Served from configuration, no database involved.\n"
+      tags:
+        - Blocks
+      responses:
+        '200':
+          description: 'Successful response'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/radioGroupBlock'
+              example:
+                id: '23'
+                title: Радио
+                type: channel_group
+                count: 2
+                protected: false
+                items:
+                  - { id: '1055', kind: channel, title: 'Radio Kartina', images: { logo: 'https://imgcdnv2.kartina.stream/ui/radio/1055/logo_1x1.png?action=resize&width=200&height=200', background: 'https://imgcdnv2.kartina.stream/ui/radio/1055/background_16x9.png?action=resize&width=1280&height=720' }, playable: true, favorite: false, capabilities: { archive: false, timeshift: false }, access: { protected: false, hidden: false }, play_url: /free/v4/channels/1055/play }
+                  - { id: '99', kind: radio, title: Шансон, images: { logo: 'https://imgcdnv2.kartina.stream/ui/radio/99/logo_1x1.png?action=resize&width=200&height=200', background: 'https://imgcdnv2.kartina.stream/ui/radio/99/background_16x9.png?action=resize&width=1280&height=720' }, playable: false, favorite: false, capabilities: { archive: false, timeshift: false }, access: { protected: false, hidden: false } }
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  '/content/{service}/{id}':
+    get:
+      operationId: getContentDetails
+      summary: 'Retrieve the details of a VOD title.'
+      description: "Returns the full card of a movie or series, same shape as the middleware `GET\n/content/{service}/{id}` but filled for an anonymous client: `favorite` is always false,\n`trailers` is empty, `images.logo` is null and `progress` is a zero position on the\ntitle itself. `{service}` is a service id from `GET /services`, `{id}` the title id\nwithin it; `details_url` on a block card is exactly this path.\n\n`title.original` comes from the search service; `title.display`, `title.short` and\n`description` carry the dashboard override when there is one. `year` is a string. `kind`\nis `series` for `tvseries`, `movieseries`, `tvshow` or any title with episodes,\notherwise `movie`.\n\n`playable` is true when the title itself or at least one episode is free. Episodes are\ngrouped into `seasons` by season number (season-less episodes go into one season with\n`number: null` and id `0`) and numbered from 1 within the season. An episode is\n`playable` only when marked free in the dashboard, and only then its landscape carries\nthe `free` badge. Every episode with an id still has a `play_url`; for a paid one it\nanswers `403`, as does the title's own `play_url` unless the title is free.\n\nA disabled title answers `404`, a title not released in the caller's country `403`. The\ncard is cached for about five minutes regardless of country (the geo check runs per\nrequest) and refreshed on edit; a `404` is cached the same way.\n"
+      tags:
+        - Content
+      parameters:
+        -
+          $ref: '#/components/parameters/service'
+        -
+          name: id
+          in: path
+          required: true
+          description: 'Title identifier within the service'
+          schema:
+            type: string
+          example: 5e9d6980f43c0361fb0fea72
+      responses:
+        '200':
+          description: 'Successful response'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/contentDetails'
+              examples:
+                movie:
+                  summary: 'free movie'
+                  value: { id: 5e9d6980f43c0361fb0fea72, service: mediateka, kind: movie, title: { original: 'Сказка о царе Салтане', display: 'Сказка о царе Салтане', short: 'Сказка о царе Салтане' }, description: { short: 'Три девицы под окном пряли поздно вечерком…', full: 'Три девицы под окном пряли поздно вечерком…' }, year: '1966', runtime: 4882, age_rating: 6, genres: [Фэнтези, Сказка], countries: [СССР], directors: ['Александр Птушко'], actors: ['Олег Видов', 'Борис Битюков'], ratings: { kinopoisk: 7.347, imdb: 7.3 }, images: { poster: 'https://imgcdnv2.kartina.stream/met/5e9d6980f43c0361fb0fea72.jpg?action=resize&width=220&height=330', landscape: 'https://imgcdnv2.kartina.stream/met/5e9d6980f43c0361fb0fea72-tv.jpg?action=resize&width=1280&height=720', logo: null, frames: ['https://imgcdnv2.kartina.stream/met/5e9d6980f43c0361fb0fea72-1.jpg?action=resize&width=400&height=225'] }, playable: true, favorite: false, progress: { position: 0, duration: 4882, completed: false, updated_at: null, target: { id: 5e9d6980f43c0361fb0fea72, kind: movie } }, trailers: [], seasons: [], play_url: /free/v4/content/mediateka/free/5e9d6980f43c0361fb0fea72/play }
+                series:
+                  summary: 'series with one free episode'
+                  value: { id: 6a0188bc9e35a34e3a098ec7, service: mediateka, kind: series, title: { original: Плакса, display: Плакса, short: Плакса }, description: { short: 'Школьница Ася переезжает в другой город и пробует начать всё с чистого листа.', full: 'Школьница Ася переезжает в другой город и пробует начать всё с чистого листа.' }, year: '2024', runtime: null, age_rating: 12, genres: [Драма], countries: [Россия], directors: [], actors: [], ratings: { kinopoisk: 7.9, imdb: null }, images: { poster: 'https://imgcdnv2.kartina.stream/met/6a0188bc9e35a34e3a098ec7.jpg?action=resize&width=220&height=330', landscape: 'https://imgcdnv2.kartina.stream/met/6a0188bc9e35a34e3a098ec7-tv.jpg?action=resize&width=1280&height=720', logo: null, frames: [] }, playable: true, favorite: false, progress: { position: 0, duration: null, completed: false, updated_at: null, target: { id: 6a0188bc9e35a34e3a098ec7, kind: series } }, trailers: [], seasons: [{ id: '1', number: 1, title: 'Сезон 1', episode_count: 2, episodes: [{ id: ep-1-1, kind: episode, number: 1, title: 'Серия 1', description: null, runtime: 2831, images: { landscape: 'https://imgcdnv2.kartina.stream/met/ep-1-1.jpg?action=resize&width=400&height=225&badge=free&device_type=mob' }, progress: null, playable: true, play_url: /free/v4/content/mediateka/free/ep-1-1/play }, { id: ep-1-2, kind: episode, number: 2, title: 'Серия 2', description: null, runtime: 2900, images: { landscape: 'https://imgcdnv2.kartina.stream/met/ep-1-2.jpg?action=resize&width=400&height=225' }, progress: null, playable: false, play_url: /free/v4/content/mediateka/free/ep-1-2/play }] }], play_url: /free/v4/content/mediateka/free/6a0188bc9e35a34e3a098ec7/play }
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '403':
+          $ref: '#/components/responses/notAvailable'
+        '404':
+          $ref: '#/components/responses/notFound'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  '/content/{service}/free/{id}/play':
+    get:
+      operationId: playFreeContent
+      summary: 'Get a playable stream for a free title or episode.'
+      description: "Returns the stream URL of a title or episode marked free in the dashboard. This is the\ntarget of every `play_url` in the details card. `{id}` is either a title id (a free\nmovie) or an episode id (a free episode); the response is the same for both.\n\nThe stream path comes from the title's or episode's own stream data. `premierone` is the\nexception: its episodes are served from `/cached/premier/{episode}/index.m3u8`, and a\npremierone movie has no free stream at all. `markers` carry the skip sections stored\nwith the stream, when there are any.\n\n`403` when the id is known but nothing free is behind it (paid movie, episode outside\nthe free list, free title without a stream path) or when the title is not released in\nthe caller's country. `404` for an unknown or disabled title. The stream target is\ncached for about five minutes and refreshed on edit; the URL itself is signed per\nrequest for the caller's IP.\n"
+      tags:
+        - Content
+      parameters:
+        -
+          $ref: '#/components/parameters/service'
+        -
+          name: id
+          in: path
+          required: true
+          description: 'Title identifier (a free movie) or episode identifier (a free episode) within the service'
+          schema:
+            type: string
+          example: 5e9d6980f43c0361fb0fea72
+      responses:
+        '200':
+          $ref: '#/components/responses/playback'
+        '403':
+          $ref: '#/components/responses/notAvailable'
+        '404':
+          $ref: '#/components/responses/notFound'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  /login:
+    post:
+      operationId: login
+      summary: 'Sign a device in as a guest.'
+      description: "The free API has no accounts: every device signs in with the same guest packet, and\nnothing is stored on the server. The endpoint exists so a client written for the v4 API\nkeeps its start-up sequence: log in, then follow the `services` and `settings` paths\nfrom the response.\n\n`security` is not a session id and no other endpoint requires it. It is a reversible\ntoken of the `device` / `serial` pair and the issue time, so a device can be recognised\nin logs and support. `expire_at` is one day after the issue time sealed into the token;\ntwo logins of the same device within one second give the same token.\n\n`push_token` is accepted for compatibility with the v4 login and ignored. Rate limited\nper IP like every other endpoint.\n"
+      tags:
+        - Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - device
+                - serial
+              additionalProperties: false
+              properties:
+                device:
+                  type: string
+                  maxLength: 255
+                  description: 'Device / software identifier (model).'
+                  example: androidtv-yb-005
+                serial:
+                  type: string
+                  maxLength: 255
+                  description: 'Device serial number.'
+                  example: GC175K002184308445
+                push_token:
+                  type: string
+                  maxLength: 255
+                  description: 'Push-notification token. Optional; accepted and ignored.'
+                  example: a3dda5212a608ed800b14e12d549b59177a9024da271b3330f11c34112f188ea
+      responses:
+        '200':
+          description: 'Signed in'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/login'
+              example:
+                login: 4333333333
+                expire_at: 1781859457
+                packet:
+                  id: 4333
+                  title: Guest
+                  type: guest
+                  share_links: null
+                security: 7c1d9a3b2f4e6d8a9b0c1d2e3f4a5b6c8e2a1f0b9d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0
+                services: /free/v4/services
+                settings: /free/v4/settings
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '422':
+          description: '`device` or `serial` missing or longer than 255 characters (HTTP 422)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/validationError'
+              example:
+                message: 'The device field is required. (and 1 more error)'
+                errors:
+                  device: ['The device field is required.']
+                  serial: ['The serial field is required.']
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  '/pages/{slug}':
+    get:
+      operationId: getPage
+      summary: 'Retrieve a page layout.'
+      description: "Returns the layout of a page assembled in the dashboard: an ordered list of block\nsummaries in `items`, each with a ready-made `block_url` to `GET\n/pages/{slug}/blocks/{id}`. Block items are not included, fetch each block separately.\nPages are addressed by slug only (derived from the page name in the dashboard); the page\nid does not resolve.\n\n`dashboard` and `details` exist in every installation. The `radio` slug is reserved and\nserved from configuration by `GET /pages/radio`; the dashboard refuses to create a page\nthat would slugify to it.\n\nThe layout carries no device targeting (every block is listed for every client) and no\n`count` per block: the caller's country is not applied here, so the item count is only\nknown once the block is fetched.\n\nBlock types are the dashboard's, with two renamed to their v4 names: `list_horizontal`\nis listed as `small_list` and `numeric` as `counter`. The block endpoint itself uses the\ndashboard names.\n\nCached for about five minutes and refreshed on any edit of the page or of a block it\nlists. An unknown slug is cached as a miss the same way; a page created afterwards shows\nup at once.\n"
+      tags:
+        - Pages
+      parameters:
+        -
+          name: slug
+          in: path
+          required: true
+          description: 'Page slug'
+          schema:
+            type: string
+          example: dashboard
+      responses:
+        '200':
+          description: 'Successful response'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/page'
+              example:
+                id: 0197f38b-a111-7a27-8dbd-178cf8b55200
+                slug: dashboard
+                title: Главная
+                items:
+                  - { id: d689d5b8-81a5-4231-9975-c6dc1e140b9c, title: 'Выбор редакции Kartina.TV', type: slider, block_url: /free/v4/pages/dashboard/blocks/d689d5b8-81a5-4231-9975-c6dc1e140b9c }
+                  - { id: 995df0d8-c4d5-4572-9def-78d750671db9, title: 'Лучшее за месяц', type: counter, block_url: /free/v4/pages/dashboard/blocks/995df0d8-c4d5-4572-9def-78d750671db9 }
+                  - { id: 88555543-e22f-4c6f-8c6e-afb939e626af, title: 'Смотрите больше', type: promo, block_url: /free/v4/pages/dashboard/blocks/88555543-e22f-4c6f-8c6e-afb939e626af }
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '404':
+          description: 'No page with this slug (HTTP 404). The message follows the server locale: `Страница не найдена` in Russian (production), `Page not found` in English.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              example:
+                message: 'Страница не найдена'
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  /pages/radio:
+    get:
+      operationId: getRadioPage
+      summary: 'Retrieve the radio page layout.'
+      description: "The radio page is not editable in the dashboard: its id, title and single\n`channel_group` block come from configuration. `block_url` points at `GET\n/pages/radio/channel-group`, `count` is the number of configured stations (nothing is\nfiltered per client) and `protected` mirrors the configured flag. Served from\nconfiguration, no database involved.\n"
+      tags:
+        - Pages
+      responses:
+        '200':
+          description: 'Successful response'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/page'
+              example:
+                id: 1f2c7178-33e7-484a-8583-43a0468abc29
+                slug: radio
+                title: Радио
+                items:
+                  - { id: '23', title: Радио, type: channel_group, block_url: /free/v4/pages/radio/channel-group, count: 13, protected: false }
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  '/channels/{channel}/play':
+    get:
+      operationId: playRadioChannel
+      summary: 'Get a playable stream for a radio station.'
+      description: "Returns the stream URL of a station marked free in the radio configuration. This is the\ntarget of `play_url` on the station card in `GET /pages/radio/channel-group`. The stream\nis `/hls/{id}/index.m3u8` on our CDN, signed for the caller's IP like a free episode. A\nstation that is listed but not free, or unknown, answers `404`.\n"
+      tags:
+        - Radio
+      parameters:
+        -
+          name: channel
+          in: path
+          required: true
+          description: 'Channel identifier, as carried by the station card'
+          schema:
+            type: string
+          example: '1055'
+      responses:
+        '200':
+          description: 'A playable stream. The URL is signed per request; resolve it again for every playback instead of storing it.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/channelStream'
+              example:
+                url: 'https://cdn.streamktv.com/hls/1055/index.m3u8?ticket=niTDfeaayKbGfaxBnJiknCOwEtMkkEu7XX06GGxyD43G82z%2FKeI8DDn%2BFA7TISMs'
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '404':
+          $ref: '#/components/responses/notFound'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  /services:
+    get:
+      operationId: getServices
+      summary: 'Retrieve the list of multimedia services.'
+      description: "Returns every service of the catalogue as a flat array in configured order, same shape\nas the middleware `GET /services` but filled for an anonymous client. The catalogue\nitself (names, descriptions, artwork) is configuration; the database only contributes\nthe operator's `disabled` flag, which turns `status` to `unavailable`. A service missing\nfrom the providers table counts as available.\n\nService ids are the `service` values on cards and in `details_url`, and the `{service}`\nsegment of the content endpoints. There are no subscriptions in the free API, so\n`access.state` is always `unsubscribed` with a null `subscription_id`, and `pages_url` /\n`credentials_url` are always null.\n\nCached for about five minutes and refreshed as soon as a provider is switched on or off\nin the dashboard.\n"
+      tags:
+        - Services
+      responses:
+        '200':
+          description: 'Successful response'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/service'
+              example:
+                -
+                  id: startru
+                  type: video
+                  name: START
+                  description: 'Большая коллекция оригинальных проектов, фильмов, мультфильмов, сериалов и эксклюзивные премьеры в отличном качестве.'
+                  status: available
+                  images: { logo: { square: 'https://imgcdnv2.kartina.stream/ui/services/startru/logo_1x1_2.png', wide: 'https://imgcdnv2.kartina.stream/ui/services/startru/icon_16x9_2.png' }, poster: 'https://imgcdnv2.kartina.stream/ui/services/startru/icon_2x3_3.png', background: 'https://imgcdnv2.kartina.stream/ui/services/startru/background_16x9_2.png' }
+                  access: { state: unsubscribed, subscription_id: null }
+                  pages_url: null
+                  credentials_url: null
+                -
+                  id: mediateka
+                  type: video
+                  name: Медиатека
+                  description: 'Уникальная, постоянно пополняемая подборка фильмов и сериалов различных жанров. Смотрите любимое кино дома в любое время и в хорошем качестве.'
+                  status: available
+                  images: { logo: { square: 'https://imgcdnv2.kartina.stream/ui/services/mediateka/logo_1x1_1.png', wide: 'https://imgcdnv2.kartina.stream/ui/services/mediateka/icon_16x9_1.png' }, poster: 'https://imgcdnv2.kartina.stream/ui/services/mediateka/icon_2x3_1.png', background: 'https://imgcdnv2.kartina.stream/ui/services/mediateka/background_16x9_1.png' }
+                  access: { state: unsubscribed, subscription_id: null }
+                  pages_url: null
+                  credentials_url: null
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+  /settings:
+    get:
+      operationId: getSettings
+      summary: 'Retrieve the fixed player settings.'
+      description: "The counterpart of the middleware `GET /settings` for a client without an account.\nValues come from configuration, are the same for every device, and there is no `POST` to\nchange them. Each stream setting comes as `{value, allowed}` with exactly one option in\n`allowed`, so a v4 settings screen renders read-only.\n\nTypes follow v4: `standard` and `server` are strings, `timeshift` is a number and\n`catchup.enabled` is `0` / `1`, not a boolean. Served from configuration, no database\nand no response cache.\n"
+      tags:
+        - Settings
+      responses:
+        '200':
+          description: 'Player settings'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/settings'
+              example:
+                standard:
+                  value: hls
+                  allowed: [{ value: hls, label: 'HLS / HEVC' }]
+                server:
+                  value: auto
+                  allowed: [{ value: auto, label: ABTO }]
+                timeshift:
+                  value: 0
+                  allowed: [{ value: 0, label: '0' }]
+                catchup:
+                  enabled: 0
+                  delay: 60
+                  length: 1209480
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+        '429':
+          $ref: '#/components/responses/tooManyRequests'
+components:
+  headers:
+    rateLimitLimit:
+      schema:
+        type: integer
+      description: 'Requests allowed per minute from one client IP address, across every endpoint of the free API.'
+      example: 900
+    rateLimitRemaining:
+      schema:
+        type: integer
+      description: "Requests left in the current minute for the caller's IP address."
+      example: 899
+    rateLimitReset:
+      schema:
+        type: integer
+      description: "Unix timestamp at which the caller's per-minute window resets. Present on `429` only."
+      example: 1781773117
+    retryAfter:
+      schema:
+        type: integer
+      description: 'Seconds to wait before the next request. Present on `429` only.'
+      example: 59
+  schemas:
+    error:
+      type: object
+      description: "Standard error body (`application/json`, whatever `Accept` the client sent). The HTTP\nstatus carries the meaning; `message` is a short text in the server locale, meant for\nlogs rather than parsing.\n"
+      required:
+        - message
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+          example: 'Not found'
+    validationError:
+      type: object
+      description: 'Validation failure (HTTP 422): the first problem in `message`, every failing field in `errors`.'
+      required:
+        - message
+        - errors
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+          example: 'The device field is required. (and 1 more error)'
+        errors:
+          type: object
+          description: 'Failing request fields mapped to their messages'
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            device:
+              - 'The device field is required.'
+            serial:
+              - 'The serial field is required.'
+    playbackStream:
+      type: object
+      description: "A playable stream. The URL points at our CDN host and carries a ticket bound to the\ncaller's IP address, the stream path and a short validity window. Fetch it per playback,\ndo not store it or share it between devices. No `ETag` is issued.\n"
+      required:
+        - url
+        - markers
+        - vmap
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+          description: 'Playable HLS URL.'
+          example: 'https://cdn.streamktv.com/vod/hls/videoteka/mediateka/Skazka-o-tsare-Saltane/index.m3u8?ticket=KKCRzM1UyR2n6MqLtOCQAr3n0%2FNMKrttq0g8h%2F4onmzdwlP%2FgmV%2F5fdQ'
+        markers:
+          description: 'Sections a player may offer to skip, as stored with the stream by the search service; null when the source publishes none.'
+          oneOf:
+            -
+              $ref: '#/components/schemas/skipMarkers'
+            -
+              type: 'null'
+        vmap:
+          type: 'null'
+          description: 'Ad-break VMAP document. Reserved; always null.'
+    skipMarkers:
+      type: object
+      description: "Skippable sections in seconds from the start of the stream, keyed by section name:\n`intro`, `recap`, `closing_credits`. Only the sections the source publishes are present.\n"
+      additionalProperties:
+        $ref: '#/components/schemas/skipMarkerRange'
+      example:
+        intro:
+          start: 10
+          end: 40
+    skipMarkerRange:
+      type: object
+      required:
+        - start
+        - end
+      additionalProperties: false
+      properties:
+        start:
+          type: integer
+          minimum: 0
+          example: 10
+        end:
+          type: integer
+          minimum: 0
+          example: 40
+    block:
+      type: object
+      description: 'A dashboard block with its items.'
+      required:
+        - id
+        - title
+        - type
+        - count
+        - items
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Block identifier'
+          example: d689d5b8-81a5-4231-9975-c6dc1e140b9c
+        title:
+          type: string
+          description: 'Block display title'
+          example: Новинки
+        type:
+          type: string
+          description: 'Block type as named in the dashboard (`list_horizontal` and `numeric` are `small_list` and `counter` in the page layout)'
+          enum:
+            - slider
+            - list
+            - list_horizontal
+            - numeric
+            - action_list
+            - images
+            - promo
+          example: list
+        count:
+          type: integer
+          description: 'Number of items after filtering; 0 for a promo block'
+          example: 1
+        items:
+          type: array
+          description: '`contentCard`s for a title block, `imageCard`s for an `images` block, empty for `promo`'
+          items:
+            oneOf:
+              -
+                $ref: '#/components/schemas/contentCard'
+              -
+                $ref: '#/components/schemas/imageCard'
+        block_data:
+          description: 'Promo fields; present only on a `promo` block that carries any'
+          $ref: '#/components/schemas/promoBlockData'
+    contentCard:
+      type: object
+      description: "A VOD title as a rail item, the v4 `contentCard` filled for an anonymous client. The\ncard opens the title rather than playing it: it carries `details_url`, and playback is\naddressed from the details card. `favorite` and `progress` are fixed, and there is no\n`favorite_url` or `trailer_url`.\n"
+      required:
+        - id
+        - kind
+        - service
+        - title
+        - description
+        - year
+        - genres
+        - runtime
+        - ratings
+        - images
+        - playable
+        - favorite
+        - progress
+        - details_url
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Content identifier within the service'
+          example: 6a0188bc9e35a34e3a098ec7
+        kind:
+          type: string
+          description: '`series` for a `tvseries` / `movieseries` / `tvshow` format or when the title carries episodes, `movie` otherwise'
+          enum:
+            - movie
+            - series
+          example: series
+        service:
+          type: string
+          description: 'Service identifier, as listed by `GET /services`'
+          example: startru
+        title:
+          type: string
+          description: "Display title (the editor's override when the dashboard changed it)"
+          example: 'Инспектор Гаврилов'
+        description:
+          type: string
+          description: "Description (the editor's override when changed); empty string when the source has none"
+          example: 'Обаятельный рецидивист становится участковым в маленьком городке.'
+        year:
+          type:
+            - string
+            - 'null'
+          description: 'Release year, as a string'
+          example: '2026'
+        genres:
+          type: array
+          items:
+            type: string
+          example:
+            - Комедия
+        runtime:
+          type:
+            - integer
+            - 'null'
+          description: 'Runtime in seconds'
+          example: 4882
+        ratings:
+          type: object
+          required:
+            - kinopoisk
+            - imdb
+          additionalProperties: false
+          properties:
+            kinopoisk:
+              type:
+                - number
+                - 'null'
+              example: 8.2
+            imdb:
+              type:
+                - number
+                - 'null'
+              example: 7.5
+        images:
+          type: object
+          required:
+            - poster
+            - landscape
+          additionalProperties: false
+          properties:
+            poster:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: "Poster (2x3), 220×330. Outside `slider` blocks it carries a `badge` overlay naming what\nis free and the provider `logo`; a `numeric` block adds `badge_num=topN`. Null when the\ntitle has no poster.\n"
+              example: 'https://imgcdnv2.kartina.stream/mw-epg-prod/epgservice/9957420.jpeg?action=resize&width=220&height=330&badge=1_series_for_free&logo=startru'
+            landscape:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: 'Landscape (16x9), 1280×720, never decorated. Null when the title has none.'
+              example: 'https://imgcdnv2.kartina.stream/mw-epg-prod/epgservice/9957423.jpeg?action=resize&width=1280&height=720'
+        playable:
+          type: boolean
+          description: 'Whether anything of the title is free: the title itself or at least one episode'
+        favorite:
+          type: boolean
+          description: 'Always false: no favorites without an account'
+        progress:
+          type: 'null'
+          description: 'Always null: the free API keeps no viewing history'
+        details_url:
+          type:
+            - string
+            - 'null'
+          format: uri-reference
+          description: 'Full details of the title (`GET /content/{service}/{id}`); null only for a title without a provider or id'
+          example: /free/v4/content/startru/6a0188bc9e35a34e3a098ec7
+    imageCard:
+      type: object
+      description: 'An image row of an `images` block, as the dashboard stored it.'
+      required:
+        - image
+        - link
+      properties:
+        image:
+          type: string
+          format: uri
+          description: 'Image URL'
+          example: 'https://imgcdnv2.kartina.stream/ui/promo/afisha-1.jpg'
+        link:
+          type: string
+          format: uri
+          description: 'Where the image leads'
+          example: 'https://www.kartina.tv/afisha'
+    promoBlockData:
+      type: object
+      description: 'The fields of a `promo` block. Only the fields the dashboard filled are present.'
+      properties:
+        title:
+          type: string
+          example: 'Смотрите больше'
+        description:
+          type: string
+          example: 'Тысячи фильмов и сериалов по подписке.'
+        image:
+          type: string
+          format: uri
+          example: 'https://imgcdnv2.kartina.stream/ui/promo/subscription.jpg'
+        url:
+          type: string
+          format: uri
+          example: 'https://www.kartina.tv/subscription'
+        subscription_type:
+          type: string
+          example: vod
+    radioGroupBlock:
+      type: object
+      description: 'The radio channel-group block with its stations.'
+      required:
+        - id
+        - title
+        - type
+        - count
+        - protected
+        - items
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Configured channel-group identifier'
+          example: '23'
+        title:
+          type: string
+          description: 'Channel-group display title'
+          example: Радио
+        type:
+          type: string
+          const: channel_group
+        count:
+          type: integer
+          description: 'Number of stations in the block'
+          example: 13
+        protected:
+          type: boolean
+          description: 'Configured protect flag of the group (currently false)'
+          example: false
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/radioCard'
+    radioCard:
+      type: object
+      description: "A radio station as a block item, the v4 `radioCard` without per-client state. Only a\nstation marked free carries `play_url`.\n"
+      required:
+        - id
+        - kind
+        - title
+        - images
+        - playable
+        - favorite
+        - capabilities
+        - access
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Channel identifier, shared with the middleware v4 channel ids'
+          example: '1055'
+        kind:
+          type: string
+          description: '`radio` unless the configuration marks the station as a `channel`'
+          enum:
+            - radio
+            - channel
+          example: channel
+        title:
+          type: string
+          description: 'Station name'
+          example: 'Radio Kartina'
+        images:
+          type: object
+          required:
+            - logo
+            - background
+          additionalProperties: false
+          properties:
+            logo:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: 'Station logo, 1:1, 200×200'
+              example: 'https://imgcdnv2.kartina.stream/ui/radio/1055/logo_1x1.png?action=resize&width=200&height=200'
+            background:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: 'Station background, 16x9, 1280×720'
+              example: 'https://imgcdnv2.kartina.stream/ui/radio/1055/background_16x9.png?action=resize&width=1280&height=720'
+        playable:
+          type: boolean
+          description: 'Whether the station is free; exactly the stations with a `play_url`'
+        favorite:
+          type: boolean
+          description: 'Always false: no favorites without an account'
+        capabilities:
+          type: object
+          required:
+            - archive
+            - timeshift
+          additionalProperties: false
+          properties:
+            archive:
+              type: boolean
+              description: 'Configured flag; currently false for every station'
+            timeshift:
+              type: boolean
+              description: 'Configured flag; currently false for every station'
+        access:
+          type: object
+          required:
+            - protected
+            - hidden
+          additionalProperties: false
+          properties:
+            protected:
+              type: boolean
+              description: 'Configured flag; currently false for every station'
+            hidden:
+              type: boolean
+              description: 'Configured flag; currently false for every station'
+        play_url:
+          type: string
+          format: uri-reference
+          description: 'Playback endpoint for the station (`GET`); present only when `playable`'
+          example: /free/v4/channels/1055/play
+    contentDetails:
+      type: object
+      description: 'Full card of a movie or series: the v4 `contentDetails` filled for an anonymous client.'
+      required:
+        - id
+        - service
+        - kind
+        - title
+        - description
+        - year
+        - runtime
+        - age_rating
+        - genres
+        - countries
+        - directors
+        - actors
+        - ratings
+        - images
+        - playable
+        - favorite
+        - progress
+        - trailers
+        - seasons
+        - play_url
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Title identifier within the service'
+          example: 5e9d6980f43c0361fb0fea72
+        service:
+          type: string
+          description: 'Service identifier'
+          example: mediateka
+        kind:
+          type: string
+          description: '`series` for a `tvseries` / `movieseries` / `tvshow` format or when the title carries episodes, `movie` otherwise'
+          enum:
+            - movie
+            - series
+          example: movie
+        title:
+          type: object
+          description: "Title variants: `original` from the search data, `display` and `short` with the editor's override"
+          required:
+            - original
+            - display
+            - short
+          additionalProperties: false
+          properties:
+            original:
+              type: string
+              example: 'Сказка о царе Салтане'
+            display:
+              type: string
+              example: 'Сказка о царе Салтане'
+            short:
+              type: string
+              example: 'Сказка о царе Салтане'
+        description:
+          type: object
+          description: "Description variants (identical); the editor's override when changed, empty strings when the source has none"
+          required:
+            - short
+            - full
+          additionalProperties: false
+          properties:
+            short:
+              type: string
+            full:
+              type: string
+        year:
+          type:
+            - string
+            - 'null'
+          description: 'Release year, as a string'
+          example: '1966'
+        runtime:
+          type:
+            - integer
+            - 'null'
+          description: 'Runtime in seconds (typically null for series)'
+          example: 4882
+        age_rating:
+          type:
+            - integer
+            - 'null'
+          description: 'Minimum viewer age'
+          example: 6
+        genres:
+          type: array
+          items:
+            type: string
+        countries:
+          type: array
+          items:
+            type: string
+        directors:
+          type: array
+          items:
+            type: string
+        actors:
+          type: array
+          items:
+            type: string
+        ratings:
+          type: object
+          required:
+            - kinopoisk
+            - imdb
+          additionalProperties: false
+          properties:
+            kinopoisk:
+              type:
+                - number
+                - 'null'
+              example: 7.347
+            imdb:
+              type:
+                - number
+                - 'null'
+              example: 7.3
+        images:
+          type: object
+          required:
+            - poster
+            - landscape
+            - logo
+            - frames
+          additionalProperties: false
+          properties:
+            poster:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: 'Poster (2x3), 220×330, plain resize: no badge or logo on the card'
+            landscape:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: 'Landscape (16x9), 1280×720'
+            logo:
+              type: 'null'
+              description: 'Reserved: always null'
+            frames:
+              type: array
+              description: 'Still frames (16x9), 400×225; frames without a usable URL are omitted'
+              items:
+                type: string
+                format: uri
+        playable:
+          type: boolean
+          description: 'Whether anything of the title is free: the title itself or at least one episode'
+        favorite:
+          type: boolean
+          description: 'Always false: no favorites without an account'
+        progress:
+          $ref: '#/components/schemas/progress'
+        trailers:
+          type: array
+          description: 'Always empty: the free API serves no trailers'
+          maxItems: 0
+          items:
+            type: object
+        seasons:
+          type: array
+          description: 'Empty for movies. Season-less episodes are collected under a synthetic season with `number: null` and id `0`.'
+          items:
+            $ref: '#/components/schemas/season'
+        play_url:
+          type:
+            - string
+            - 'null'
+          format: uri-reference
+          description: "Playback endpoint for the title (`GET /content/{service}/free/{id}/play`). Present for\nevery title; answers `403` unless the title itself is free. Null only for a title\nwithout a service or id.\n"
+          example: /free/v4/content/mediateka/free/5e9d6980f43c0361fb0fea72/play
+    progress:
+      type: object
+      description: "Continue-watching placeholder in the v4 shape. The free API keeps no viewing history, so\nthe position is always 0 and the target is the title itself.\n"
+      required:
+        - position
+        - duration
+        - completed
+        - updated_at
+        - target
+      additionalProperties: false
+      properties:
+        position:
+          type: integer
+          const: 0
+        duration:
+          type:
+            - integer
+            - 'null'
+          description: "The title's runtime"
+          example: 4882
+        completed:
+          type: boolean
+          const: false
+        updated_at:
+          type: 'null'
+        target:
+          type: object
+          required:
+            - id
+            - kind
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              description: 'The title id'
+              example: 5e9d6980f43c0361fb0fea72
+            kind:
+              type: string
+              description: 'The title kind'
+              enum:
+                - movie
+                - series
+              example: movie
+    season:
+      type: object
+      required:
+        - id
+        - number
+        - title
+        - episode_count
+        - episodes
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Season id from the source service, else the season number; `0` for the synthetic season-less group'
+          example: '1'
+        number:
+          type:
+            - integer
+            - 'null'
+          description: 'Season number; null for the synthetic group of season-less episodes'
+          example: 1
+        title:
+          type: string
+          description: 'Season title from the source, else `Сезон N` (`Отдельные эпизоды` for the season-less group; localized by the server)'
+          example: 'Сезон 1'
+        episode_count:
+          type: integer
+          example: 2
+        episodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/episode'
+    episode:
+      type: object
+      required:
+        - id
+        - kind
+        - number
+        - title
+        - description
+        - runtime
+        - images
+        - progress
+        - playable
+        - play_url
+      additionalProperties: false
+      properties:
+        id:
+          type:
+            - string
+            - 'null'
+          description: 'Episode identifier within the service; null when the source provides none'
+          example: ep-1-1
+        kind:
+          type: string
+          const: episode
+        number:
+          type: integer
+          description: 'Sequential number within the season (1-based)'
+          example: 1
+        title:
+          type: string
+          example: 'Серия 1'
+        description:
+          type:
+            - string
+            - 'null'
+          example: null
+        runtime:
+          type:
+            - integer
+            - 'null'
+          description: 'Episode runtime in seconds'
+          example: 2831
+        images:
+          type: object
+          required:
+            - landscape
+          additionalProperties: false
+          properties:
+            landscape:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: "Episode still (16x9), 400×225; a free episode's still carries the `free` badge"
+              example: 'https://imgcdnv2.kartina.stream/met/ep-1-1.jpg?action=resize&width=400&height=225&badge=free&device_type=mob'
+        progress:
+          type: 'null'
+          description: 'Always null: no viewing history'
+        playable:
+          type: boolean
+          description: 'Whether the dashboard marked the episode free'
+        play_url:
+          type:
+            - string
+            - 'null'
+          format: uri-reference
+          description: 'Playback endpoint for the episode (`GET`); answers `403` unless the episode is free. Null when the episode has no id.'
+          example: /free/v4/content/mediateka/free/ep-1-1/play
+    login:
+      type: object
+      description: 'Guest sign-in: the same packet for every device, plus a token naming the device.'
+      required:
+        - login
+        - expire_at
+        - packet
+        - security
+        - services
+        - settings
+      additionalProperties: false
+      properties:
+        login:
+          type: integer
+          format: int64
+          description: 'Guest login code, the same for every device. Exceeds 32 bits.'
+          example: 4333333333
+        expire_at:
+          type: integer
+          description: 'Unix timestamp one day after the issue moment sealed into `security`.'
+          example: 1781859457
+        packet:
+          type: object
+          description: 'The guest packet'
+          required:
+            - id
+            - title
+            - type
+            - share_links
+          additionalProperties: false
+          properties:
+            id:
+              type: integer
+              example: 4333
+            title:
+              type: string
+              example: Guest
+            type:
+              type: string
+              example: guest
+            share_links:
+              type: 'null'
+              description: 'Always null: there is nothing to share without an account.'
+        security:
+          type: string
+          description: "Hex-encoded reversible token of `device`, `serial` and the issue time. Identifies the\ndevice in logs and support; no endpoint requires it.\n"
+          example: 7c1d9a3b2f4e6d8a9b0c1d2e3f4a5b6c8e2a1f0b9d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0
+        services:
+          type: string
+          format: uri-reference
+          description: 'Path of the service list (`GET /services`)'
+          example: /free/v4/services
+        settings:
+          type: string
+          format: uri-reference
+          description: 'Path of the player settings (`GET /settings`)'
+          example: /free/v4/settings
+    page:
+      type: object
+      description: 'Page layout: an ordered list of block summaries without items.'
+      required:
+        - id
+        - slug
+        - title
+        - items
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Page identifier (UUID)'
+          example: 0197f38b-a111-7a27-8dbd-178cf8b55200
+        slug:
+          type: string
+          description: 'Page slug used in paths'
+          example: dashboard
+        title:
+          type: string
+          description: 'Page display title'
+          example: Главная
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/blockSummary'
+    blockSummary:
+      type: object
+      description: 'A block reference inside a page layout.'
+      required:
+        - id
+        - title
+        - type
+        - block_url
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Block identifier: a UUID on dashboard pages, the configured group id on the radio page'
+          example: d689d5b8-81a5-4231-9975-c6dc1e140b9c
+        title:
+          type: string
+          description: 'Block display title'
+          example: 'Выбор редакции Kartina.TV'
+        type:
+          type: string
+          description: "Block type. `channel_group` appears only on the radio page. `small_list` and\n`counter` are the v4 names of the dashboard's `list_horizontal` and `numeric`\nblocks; the block endpoint answers with the dashboard names.\n"
+          enum:
+            - slider
+            - list
+            - small_list
+            - counter
+            - images
+            - promo
+            - action_list
+            - channel_group
+          example: slider
+        block_url:
+          type: string
+          format: uri-reference
+          description: 'Ready-made path to the block content (`GET`)'
+          example: /free/v4/pages/dashboard/blocks/d689d5b8-81a5-4231-9975-c6dc1e140b9c
+        count:
+          type: integer
+          description: 'Number of stations in the block (radio page only)'
+          example: 13
+        protected:
+          type: boolean
+          description: 'Whether the group is behind a protect code (radio page only; configured, currently false)'
+          example: false
+    channelStream:
+      type: object
+      description: 'A playable radio stream: the URL alone, like the v4 channel stream.'
+      required:
+        - url
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+          description: 'Playable HLS URL on our CDN, with an IP-bound ticket'
+          example: 'https://cdn.streamktv.com/hls/1055/index.m3u8?ticket=niTDfeaayKbGfaxBnJiknCOwEtMkkEu7XX06GGxyD43G82z%2FKeI8DDn%2BFA7TISMs'
+    service:
+      type: object
+      required:
+        - id
+        - type
+        - name
+        - description
+        - status
+        - images
+        - access
+        - pages_url
+        - credentials_url
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          description: 'Service identifier: the provider key used in `service` fields and content paths'
+          enum:
+            - startru
+            - moretv
+            - premierone
+            - iviru
+            - kinopoiskru
+            - filmua
+            - souzmultru
+            - uzbektv
+            - pamg
+            - mediateka
+            - unicoplaycom
+            - mediatekafree
+          example: startru
+        type:
+          type: string
+          description: 'Content type'
+          enum:
+            - video
+            - audio
+          example: video
+        name:
+          type: string
+          description: 'Service display name'
+          example: START
+        description:
+          type: string
+          description: 'Service description'
+          example: 'Большая коллекция оригинальных проектов, фильмов, мультфильмов, сериалов и эксклюзивные премьеры в отличном качестве.'
+        status:
+          type: string
+          description: '`unavailable` when the operator disabled the provider in the dashboard'
+          enum:
+            - available
+            - unavailable
+          example: available
+        images:
+          type: object
+          description: 'Service artwork grouped by purpose (null when the catalogue provides none)'
+          required:
+            - logo
+            - poster
+            - background
+          additionalProperties: false
+          properties:
+            logo:
+              type: object
+              required:
+                - square
+                - wide
+              additionalProperties: false
+              properties:
+                square:
+                  type: [string, 'null']
+                  format: uri
+                  description: 'Square (1x1) logo'
+                  example: 'https://imgcdnv2.kartina.stream/ui/services/startru/logo_1x1_2.png'
+                wide:
+                  type: [string, 'null']
+                  format: uri
+                  description: 'Wide (16x9) logo'
+                  example: 'https://imgcdnv2.kartina.stream/ui/services/startru/icon_16x9_2.png'
+            poster:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: 'Poster (2x3) image'
+              example: 'https://imgcdnv2.kartina.stream/ui/services/startru/icon_2x3_3.png'
+            background:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: 'Background (16x9) image'
+              example: 'https://imgcdnv2.kartina.stream/ui/services/startru/background_16x9_2.png'
+        access:
+          type: object
+          description: 'Subscription state: fixed, the free API has no subscriptions'
+          required:
+            - state
+            - subscription_id
+          additionalProperties: false
+          properties:
+            state:
+              type: string
+              const: unsubscribed
+            subscription_id:
+              type: 'null'
+              description: 'Always null'
+        pages_url:
+          type: 'null'
+          description: 'Always null: services carry no pages of their own here; pages are addressed by slug via `GET /pages/{slug}`'
+        credentials_url:
+          type: 'null'
+          description: 'Always null: no external-service credentials without an account'
+    settings:
+      type: object
+      required:
+        - standard
+        - server
+        - timeshift
+        - catchup
+      additionalProperties: false
+      properties:
+        standard:
+          description: 'Stream standard; the only option is `hls`'
+          $ref: '#/components/schemas/setting'
+        server:
+          description: 'Streaming server choice; the only option is `auto`'
+          $ref: '#/components/schemas/setting'
+        timeshift:
+          description: 'Timeshift in hours; the only option is `0`'
+          $ref: '#/components/schemas/setting'
+        catchup:
+          type: object
+          description: 'Catch-up state: disabled, with the v4 default window.'
+          required:
+            - enabled
+            - delay
+            - length
+          additionalProperties: false
+          properties:
+            enabled:
+              type: integer
+              description: '`1` when catch-up is enabled; always `0` here'
+              enum:
+                - 0
+                - 1
+              example: 0
+            delay:
+              type: integer
+              description: 'Seconds after a programme ends before its recording is offered'
+              example: 60
+            length:
+              type: integer
+              description: 'Length of the catch-up window in seconds (two weeks)'
+              example: 1209480
+    setting:
+      type: object
+      description: 'A stream setting: its current value and the options a client may show.'
+      required:
+        - value
+        - allowed
+      additionalProperties: false
+      properties:
+        value:
+          type:
+            - string
+            - integer
+          description: 'Current value; a string for `standard` and `server`, a number for `timeshift`'
+          example: hls
+        allowed:
+          type: array
+          description: 'Selectable options: exactly one on the free API'
+          minItems: 1
+          items:
+            type: object
+            required:
+              - value
+              - label
+            additionalProperties: false
+            properties:
+              value:
+                type:
+                  - string
+                  - integer
+                example: hls
+              label:
+                type: string
+                example: 'HLS / HEVC'
+  responses:
+    notFound:
+      description: "No such resource (HTTP 404). Also the answer for an entry that exists but is switched\noff (a title the dashboard disabled, a station not marked free); the public API does not\ntell the two apart.\n"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/error'
+          example:
+            message: 'Not found'
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/rateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/rateLimitRemaining'
+    tooManyRequests:
+      description: "Rate limit exceeded (HTTP 429). The free API allows 900 requests per minute per client\nIP address across all endpoints; wait `Retry-After` seconds before the next request.\nClients behind a shared address (an operator NAT) share the budget.\n"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/error'
+          example:
+            message: 'Too Many Attempts.'
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/rateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/rateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/rateLimitReset'
+        Retry-After:
+          $ref: '#/components/headers/retryAfter'
+    playback:
+      description: "A playable stream. The URL is signed for the caller's IP address and a short validity\nwindow: resolve it again for every playback instead of storing it.\n"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/playbackStream'
+          examples:
+            movie:
+              summary: 'free movie with skip markers'
+              value:
+                url: 'https://cdn.streamktv.com/vod/hls/videoteka/mediateka/Skazka-o-tsare-Saltane/index.m3u8?ticket=KKCRzM1UyR2n6MqLtOCQAr3n0%2FNMKrttq0g8h%2F4onmzdwlP%2FgmV%2F5fdQ'
+                markers:
+                  intro: { start: 10, end: 40 }
+                vmap: null
+            episode:
+              summary: 'free episode without markers'
+              value:
+                url: 'https://cdn.streamktv.com/vod/hls/videoteka/moretv/Wink-originals-Trudno-byt-bogom/Wink-originals-Trudno-byt-bogom_s1e1/index.m3u8?ticket=niTDfeaayKbGfaxBnJiknCOwEtMkkEu7XX06GGxyD43G82z%2FKeI8DDn%2BFA7TISMs'
+                markers: null
+                vmap: null
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/rateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/rateLimitRemaining'
+    notAvailable:
+      description: "Not available (HTTP 403): the title is not released in the caller's country, or, for\nplayback, the id is known but nothing free is behind it (a paid movie, an episode\noutside the free list, a title without a stream path, a premierone movie).\n"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/error'
+          example:
+            message: 'Access denied'
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/rateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/rateLimitRemaining'
+  parameters:
+    service:
+      name: service
+      in: path
+      required: true
+      description: 'Service identifier, as listed by `GET /services`'
+      schema:
+        type: string
+        enum:
+          - startru
+          - moretv
+          - premierone
+          - iviru
+          - kinopoiskru
+          - filmua
+          - souzmultru
+          - uzbektv
+          - pamg
+          - mediateka
+          - unicoplaycom
+          - mediatekafree
+      example: mediateka

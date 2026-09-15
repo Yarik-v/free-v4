@@ -1,0 +1,56 @@
+name: Free API tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Every 6 hours: cheap against the API's 900 req/min-per-IP budget (this suite makes
+    # well under a hundred requests per run), frequent enough to catch the live API
+    # drifting from its documented contract between manual runs.
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      # No `playwright install` step: this suite only uses the `request` fixture
+      # (APIRequestContext), never a browser, so no browser binaries are needed.
+      - name: Run API tests
+        run: npm test
+
+      - name: Upload Playwright HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload JUnit results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-results
+          path: test-results/junit.xml
+          retention-days: 14
