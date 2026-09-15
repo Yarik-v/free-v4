@@ -51,12 +51,23 @@ allowed by the `host` server variable in `spec/openapi.yaml`).
 
 ## CI
 
-`.github/workflows/api-tests.yml` runs the suite on every push/PR to `main`, on a
-`workflow_dispatch`, and on a `0 */6 * * *` schedule — the scheduled run is what catches
-the live API drifting from its documented contract between manual pushes. It's a single
-job: checkout, `npm ci`, `npm run typecheck`, `npm test` (no `playwright install` step —
-this suite only uses `request`, never a browser). The `playwright-report/` HTML report and
-`test-results/junit.xml` are uploaded as artifacts on every run, pass or fail.
+`.github/workflows/typecheck.yml` runs `npm run typecheck` on every push/PR to `main` and
+on `workflow_dispatch`. It does **not** run the suite itself: GitHub-hosted runners sit on
+datacenter IP ranges the live API rejects outright — a real run confirmed every endpoint
+answering `403` from a GitHub Actions runner, not just geo-filtered VOD content (session
+and catalog endpoints that carry no geo logic failed identically), so the API's edge
+protection is blocking the runner's network, not the requests themselves. Until CI can
+reach the API from an allowed network, the live suite (`npm test`) stays a local/manual
+run. Options considered, to revisit later:
+
+- a self-hosted runner inside Kartina.TV's own network (or anywhere on an allowed IP);
+- allowlisting GitHub Actions' published IP ranges at whatever sits in front of the API;
+- pointing CI at `free-dashboard-dev.kartina.tv` instead, if that host isn't behind the
+  same protection.
+
+`playwright.config.ts` still switches to the `github`/`junit`/`html` reporters under
+`CI=true` (e.g. `CI=true npm test` locally), so re-enabling a live-test CI job later is
+just adding the job back — no config changes needed.
 
 ## Notes on scope
 
