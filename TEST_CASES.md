@@ -9,7 +9,7 @@ on purpose).
 
 Legend: **P0** = blocks release if broken, **P1** = should work, **P2** = nice to have covered.
 
-**64 cases total, 56 automated, 8 gaps** (`—` in Automated) — the rest need geo/IP control
+**65 cases total, 57 automated, 8 gaps** (`—` in Automated) — the rest need geo/IP control
 (2), dashboard-editor access (4), or a deliberate rate-limit exclusion (2); see "Remaining
 gaps" below for the breakdown and what each one would take.
 
@@ -71,6 +71,7 @@ gaps" below for the breakdown and what each one would take.
 | CNT-11 | `premierone` movie has no free stream | P2 | a premierone movie marked free at the title level | Play it | Per docs, premierone serves episodes only from a fixed CDN path; a movie has no free stream at all — confirm the actual response | `tests/catalog/content.spec.ts` (opportunistic — skips if no premierone movie is live) |
 | CNT-12 | Stream URL is signed per request | P2 | a free title | Call play twice | The two `url` values differ (fresh ticket each time) | `tests/catalog/content.spec.ts` |
 | CNT-13 | Response is cached ~5 min, refreshed on dashboard edit | P2 | dashboard access | Edit the title, re-fetch within/after the cache window | Response reflects the edit only after the cache window, or immediately (docs say refreshed on edit) | — (needs dashboard access + timing control) |
+| CNT-14 | **BUG:** a title with episodes is labeled `kind: movie` | P1 | a premierone title with a season-less synthetic episode | GET its details | Docs: `kind` is `series` whenever a title carries episodes — but this one reports `movie`. Pinned to the current (wrong) value so a fix flips this test | `tests/catalog/content.spec.ts` — pinned regression, see `premierone/246066` |
 
 ### 2.3 Radio — `GET /pages/radio`, `GET /pages/radio/channel-group`, `GET /channels/{channel}/play`
 

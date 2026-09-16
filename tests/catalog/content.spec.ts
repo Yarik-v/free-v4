@@ -1,8 +1,19 @@
 import { test, expect } from '../fixtures';
 import { expectCacheControlHeader, expectCorsHeader, expectRateLimitHeaders, expectValidSchema } from '../../src/api/assertions';
-import type { ContentCard } from '../../src/api/types';
+import type { Block, ContentCard, ContentDetails } from '../../src/api/types';
 
 const NO_SAMPLE_CONTENT = 'No title with a live details_url found on the dashboard right now.';
+
+/** First premierone card labeled `kind: movie` in any dashboard block, if there is one. */
+function findPremiereMovie(dashboardBlocks: Array<{ body: Block }>): ContentCard | undefined {
+  for (const { body: block } of dashboardBlocks) {
+    const found = block.items.find(
+      (item): item is ContentCard => 'service' in item && item.service === 'premierone' && item.kind === 'movie',
+    );
+    if (found) return found;
+  }
+  return undefined;
+}
 
 test.describe('GET /content/{service}/{id}', () => {
   test('returns full details for a title discovered from the dashboard', async ({ sampleContent, sampleContentDetails }) => {
@@ -63,6 +74,27 @@ test.describe('GET /content/{service}/{id}', () => {
     expect(res.status()).toBe(404);
     expectValidSchema('error', await res.json());
   });
+
+  test('a title with episodes is mislabeled kind "movie" instead of "series" (known API bug)', async ({
+    api,
+    dashboardBlocks,
+  }) => {
+    // Docs: kind is "series" for tvseries/movieseries/tvshow or any title carrying
+    // episodes, "movie" otherwise. A premierone title can carry a synthetic
+    // season-less episode while still reporting kind: "movie" — contradicting that
+    // rule. Pinned to the current (buggy) value, not the documented one, so a fix
+    // shows up as this test failing rather than going unnoticed. When it's fixed,
+    // flip the expectation to "series".
+    const premiereMovie = findPremiereMovie(dashboardBlocks);
+    test.skip(!premiereMovie, 'No premierone movie on the dashboard right now.');
+
+    const res = await api.getContentDetails('premierone', premiereMovie!.id);
+    const body: ContentDetails = await res.json();
+    const hasEpisodes = body.seasons.some((season) => season.episodes.length > 0);
+    test.skip(!hasEpisodes, 'This premierone movie currently has no episodes attached; bug not reproducible right now.');
+
+    expect(body.kind).toBe('movie');
+  });
 });
 
 test.describe('GET /content/{service}/free/{id}/play', () => {
@@ -99,16 +131,7 @@ test.describe('GET /content/{service}/free/{id}/play', () => {
   test('a premierone movie has no free stream, even if listed as free', async ({ api, dashboardBlocks }) => {
     // Per the docs: premierone episodes are served from a fixed CDN path, but a
     // premierone *movie* has no free stream at all — its play_url should always 403.
-    let premiereMovie: ContentCard | undefined;
-    for (const { body: block } of dashboardBlocks) {
-      const found = block.items.find(
-        (item): item is ContentCard => 'service' in item && item.service === 'premierone' && item.kind === 'movie',
-      );
-      if (found) {
-        premiereMovie = found;
-        break;
-      }
-    }
+    const premiereMovie = findPremiereMovie(dashboardBlocks);
     test.skip(!premiereMovie, 'No premierone movie on the dashboard right now.');
 
     const res = await api.playFreeContent('premierone', premiereMovie!.id);
