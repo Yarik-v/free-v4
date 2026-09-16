@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures';
 import { expectCacheControlHeader, expectCorsHeader, expectRateLimitHeaders, expectValidSchema } from '../../src/api/assertions';
+import type { ContentCard } from '../../src/api/types';
 
 const NO_SAMPLE_CONTENT = 'No title with a live details_url found on the dashboard right now.';
 
@@ -93,6 +94,26 @@ test.describe('GET /content/{service}/free/{id}/play', () => {
   test('unknown title id answers 404', async ({ api }) => {
     const res = await api.playFreeContent('mediateka', 'does-not-exist-00000000');
     expect(res.status()).toBe(404);
+  });
+
+  test('a premierone movie has no free stream, even if listed as free', async ({ api, dashboardBlocks }) => {
+    // Per the docs: premierone episodes are served from a fixed CDN path, but a
+    // premierone *movie* has no free stream at all — its play_url should always 403.
+    let premiereMovie: ContentCard | undefined;
+    for (const { body: block } of dashboardBlocks) {
+      const found = block.items.find(
+        (item): item is ContentCard => 'service' in item && item.service === 'premierone' && item.kind === 'movie',
+      );
+      if (found) {
+        premiereMovie = found;
+        break;
+      }
+    }
+    test.skip(!premiereMovie, 'No premierone movie on the dashboard right now.');
+
+    const res = await api.playFreeContent('premierone', premiereMovie!.id);
+    expect(res.status()).toBe(403);
+    expectValidSchema('error', await res.json());
   });
 
   test('the stream URL is signed fresh on every call', async ({ api, sampleContent, sampleContentDetails }) => {

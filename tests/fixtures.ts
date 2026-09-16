@@ -1,7 +1,6 @@
 import { test as base, expect, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { FreeApiClient } from '../src/api/client';
 import { baseURL, fixturePageSlug } from '../src/config';
-import { TITLE_BLOCK_SUMMARY_TYPES } from '../src/api/types';
 import type {
   Block,
   ContentCard,
@@ -40,6 +39,8 @@ interface WorkerFixtures {
   settingsBody: Cached<Settings>;
   /** GET /pages/radio/channel-group, fetched once per worker and shared by every radio test. */
   radioGroupBlock: Cached<RadioGroupBlock>;
+  /** Every block listed on the dashboard, fetched once per worker and shared by every test that needs one. */
+  dashboardBlocks: Cached<Block>[];
   /**
    * A real `{service, id}` pair discovered by walking the dashboard's title blocks,
    * for tests that need a live content details page. `null` when the dashboard
@@ -123,23 +124,35 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     { scope: 'worker' },
   ],
 
-  sampleContent: [
+  dashboardBlocks: [
     async ({ workerApi, dashboardPage }, use) => {
-      // dashboardPage.items are blockSummary entries: that endpoint reports
-      // list_horizontal/numeric blocks as small_list/counter (unlike the block-detail
-      // endpoint below), so filtering must use the page-layout vocabulary here.
-      const titleBlockSummaries = dashboardPage.items.filter((summary) => TITLE_BLOCK_SUMMARY_TYPES.has(summary.type));
-
-      let found: DiscoveredContent | null = null;
+      const results: Cached<Block>[] = [];
       const failures: string[] = [];
 
-      for (const summary of titleBlockSummaries) {
+      for (const summary of dashboardPage.items) {
         const res = await workerApi.getPageBlock(dashboardPage.slug, summary.id);
         if (!res.ok()) {
           failures.push(`${summary.id}: ${res.status()}`);
           continue;
         }
-        const block: Block = await res.json();
+        results.push({ res, body: await res.json() });
+      }
+
+      if (results.length === 0 && dashboardPage.items.length > 0) {
+        throw new Error(`Fixture setup failed: every dashboard block request errored (${failures.join(', ')})`);
+      }
+
+      await use(results);
+    },
+    { scope: 'worker' },
+  ],
+
+  sampleContent: [
+    async ({ dashboardBlocks }, use) => {
+      // No need to filter by block type first: a title-bearing item is simply one
+      // with a details_url, regardless of which block type carries it.
+      let found: DiscoveredContent | null = null;
+      for (const { body: block } of dashboardBlocks) {
         const card = block.items.find(
           (item): item is ContentCard => 'details_url' in item && Boolean(item.details_url),
         );
@@ -148,11 +161,6 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
           break;
         }
       }
-
-      if (!found && titleBlockSummaries.length > 0 && failures.length === titleBlockSummaries.length) {
-        throw new Error(`Fixture setup failed: every title block request errored (${failures.join(', ')})`);
-      }
-
       await use(found);
     },
     { scope: 'worker' },

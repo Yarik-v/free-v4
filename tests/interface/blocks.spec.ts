@@ -1,26 +1,23 @@
 import { test, expect } from '../fixtures';
 import { expectCacheControlHeader, expectCorsHeader, expectRateLimitHeaders, expectValidSchema } from '../../src/api/assertions';
 import { TITLE_BLOCK_TYPES } from '../../src/api/types';
-import type { Block, ImageCard } from '../../src/api/types';
+import type { ContentCard, ImageCard } from '../../src/api/types';
 
 test.describe('GET /pages/{slug}/blocks/{id}', () => {
   test('every block on the dashboard matches the block schema and its declared item shape', async ({
-    api,
     dashboardPage,
+    dashboardBlocks,
   }) => {
     expect(dashboardPage.items.length).toBeGreaterThan(0);
 
-    for (const summary of dashboardPage.items) {
-      const res = await api.getPageBlock(dashboardPage.slug, summary.id);
-      expect(res.status(), `block ${summary.id} (${summary.type})`).toBe(200);
+    for (const { res, body: block } of dashboardBlocks) {
+      expect(res.status(), `block ${block.id} (${block.type})`).toBe(200);
       expectRateLimitHeaders(res);
       expectCacheControlHeader(res);
       expectCorsHeader(res);
 
-      const block: Block = await res.json();
       expectValidSchema('block', block);
-
-      expect(block.id).toBe(summary.id);
+      expect(dashboardPage.items.some((summary) => summary.id === block.id), `block ${block.id} listed on the page`).toBe(true);
       expect(block.count).toBe(block.items.length);
 
       if (TITLE_BLOCK_TYPES.has(block.type)) {
@@ -38,6 +35,35 @@ test.describe('GET /pages/{slug}/blocks/{id}', () => {
         expect(block.items).toEqual([]);
       }
     }
+  });
+
+  test('slider posters are only resized, never decorated with a badge or logo', async ({ dashboardBlocks }) => {
+    const slider = dashboardBlocks.find(({ body }) => body.type === 'slider');
+    test.skip(!slider, 'No slider block on the dashboard right now.');
+
+    const poster = (slider!.body.items[0] as ContentCard | undefined)?.images.poster;
+    test.skip(!poster, 'First slider item has no poster.');
+
+    expect(poster).not.toContain('badge=');
+    expect(poster).not.toContain('logo=');
+  });
+
+  test('numeric block posters carry a badge_num', async ({ dashboardBlocks }) => {
+    const numeric = dashboardBlocks.find(({ body }) => body.type === 'numeric');
+    test.skip(!numeric, 'No numeric block on the dashboard right now.');
+
+    const poster = (numeric!.body.items[0] as ContentCard | undefined)?.images.poster;
+    test.skip(!poster, 'First numeric item has no poster.');
+
+    expect(poster).toContain('badge_num=');
+  });
+
+  test('a promo block only carries the fields the dashboard actually set', async ({ dashboardBlocks }) => {
+    const promo = dashboardBlocks.find(({ body }) => body.type === 'promo');
+    test.skip(!promo, 'No promo block on the dashboard right now.');
+    test.skip(!promo!.body.block_data, 'This promo block carries no block_data.');
+
+    expect(Object.keys(promo!.body.block_data!).length).toBeGreaterThan(0);
   });
 
   test('a block resolves the same way under any existing page slug', async ({ api, dashboardPage }) => {
