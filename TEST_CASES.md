@@ -9,9 +9,9 @@ on purpose).
 
 Legend: **P0** = blocks release if broken, **P1** = should work, **P2** = nice to have covered.
 
-**64 cases total, 44 automated, 20 gaps** (`—` in Automated) — mostly geo/country-dependent
-behavior, things that need dashboard-editor access, deliberate rate-limit/429 exclusion, and
-a couple of boundary/uniqueness checks not yet worth a dedicated test.
+**64 cases total, 52 automated, 12 gaps** (`—` in Automated) — remaining gaps need geo/IP
+control, dashboard-editor access, or specific live content that isn't always there; a couple
+(429) are deliberately excluded.
 
 ## 1. Session
 
@@ -27,10 +27,10 @@ a couple of boundary/uniqueness checks not yet worth a dedicated test.
 | LOGIN-06 | Missing `serial` only | P1 | none | POST `/login` with `{device}` | 422; `errors` has exactly `serial` | `tests/session/login.spec.ts` |
 | LOGIN-07 | `device` at the 255-char boundary | P1 | none | POST `/login` with a 255-char `device` | 200 | `tests/session/login.spec.ts` |
 | LOGIN-08 | `device` over the 255-char boundary | P1 | none | POST `/login` with a 256-char `device` | 422; `errors` has `device` | `tests/session/login.spec.ts` |
-| LOGIN-09 | `serial` at/over the 255-char boundary | P2 | none | POST `/login` with a 255-char and a 256-char `serial` | Same pattern as LOGIN-07/08 for `serial` | — (only `device` boundary is covered; `serial` has the same `maxLength: 255` in the spec) |
-| LOGIN-10 | Unknown extra field in the body | P2 | none | POST `/login` with `{device, serial, foo: "bar"}` | Spec marks the request schema `additionalProperties: false` — confirm whether the server actually rejects (422) or silently ignores it | — |
-| LOGIN-11 | Different devices get different tokens | P2 | none | POST `/login` twice with two distinct `device`/`serial` pairs | `security` values differ | — |
-| LOGIN-12 | Wrong HTTP method | P2 | none | GET `/login` | 404/405 (not part of the documented contract, but worth pinning actual behavior) | — |
+| LOGIN-09 | `serial` at/over the 255-char boundary | P2 | none | POST `/login` with a 255-char and a 256-char `serial` | Same pattern as LOGIN-07/08 for `serial` | `tests/session/login.spec.ts` |
+| LOGIN-10 | Unknown extra field in the body | P2 | none | POST `/login` with `{device, serial, foo: "bar"}` | Spec marks the request schema `additionalProperties: false`, but the live server ignores it — 200 | `tests/session/login.spec.ts` |
+| LOGIN-11 | Different devices get different tokens | P2 | none | POST `/login` twice with two distinct `device`/`serial` pairs | `security` values differ | `tests/session/login.spec.ts` |
+| LOGIN-12 | Wrong HTTP method | P2 | none | GET `/login` | 405 | `tests/session/login.spec.ts` |
 | LOGIN-13 | Rate limit (429) | P2 | able to burst >900 req/min from one IP | Exceed the per-minute budget | 429; `Retry-After` and `X-RateLimit-Reset` present | — (deliberately excluded — see README "Notes on scope") |
 
 ### 1.2 Settings — `GET /settings`
@@ -40,7 +40,7 @@ a couple of boundary/uniqueness checks not yet worth a dedicated test.
 | SET-01 | Returns the fixed settings | P0 | none | GET `/settings` | 200; matches `settings` schema | `tests/session/settings.spec.ts` |
 | SET-02 | Every stream setting has exactly one allowed option | P1 | none | Inspect `standard`, `server`, `timeshift` | Each `allowed` has length 1, and its `value` equals the setting's own `value` | `tests/session/settings.spec.ts` |
 | SET-03 | Catch-up is disabled | P1 | none | Inspect `catchup` | `enabled == 0` | `tests/session/settings.spec.ts` |
-| SET-04 | Catch-up window matches documented values | P2 | none | Inspect `catchup.delay` / `catchup.length` | `delay == 60`, `length == 1209480` (per spec example) | — |
+| SET-04 | Catch-up window matches documented values | P2 | none | Inspect `catchup.delay` / `catchup.length` | `delay == 60`, `length == 1209480` (per spec example) | `tests/session/settings.spec.ts` |
 | SET-05 | No auth required | P1 | none | GET `/settings` with no cookies/headers beyond `Accept` | 200 | Implicit in every test (no auth is ever sent) |
 
 ## 2. Catalog
@@ -69,7 +69,7 @@ a couple of boundary/uniqueness checks not yet worth a dedicated test.
 | CNT-09 | Play a non-free title | P1 | discovered title is not free | Same call | 403; `error` schema | `tests/catalog/content.spec.ts` |
 | CNT-10 | Play an unknown id | P0 | none | GET `/content/mediateka/free/does-not-exist/play` | 404 | `tests/catalog/content.spec.ts` |
 | CNT-11 | `premierone` movie has no free stream | P2 | a premierone movie marked free at the title level | Play it | Per docs, premierone serves episodes only from a fixed CDN path; a movie has no free stream at all — confirm the actual response | — |
-| CNT-12 | Stream URL is signed per request | P2 | a free title | Call play twice | The two `url` values differ (fresh ticket each time) | — |
+| CNT-12 | Stream URL is signed per request | P2 | a free title | Call play twice | The two `url` values differ (fresh ticket each time) | `tests/catalog/content.spec.ts` |
 | CNT-13 | Response is cached ~5 min, refreshed on dashboard edit | P2 | dashboard access | Edit the title, re-fetch within/after the cache window | Response reflects the edit only after the cache window, or immediately (docs say refreshed on edit) | — (needs dashboard access + timing control) |
 
 ### 2.3 Radio — `GET /pages/radio`, `GET /pages/radio/channel-group`, `GET /channels/{channel}/play`
@@ -84,7 +84,7 @@ a couple of boundary/uniqueness checks not yet worth a dedicated test.
 | RADIO-06 | Play a free station | P0 | at least one free station | GET `/channels/{id}/play` | 200; `channelStream` schema; `url` starts with `https://` | `tests/catalog/radio.spec.ts` |
 | RADIO-07 | Play an unknown channel | P0 | none | GET `/channels/does-not-exist/play` | 404 | `tests/catalog/radio.spec.ts` |
 | RADIO-08 | Play a listed but non-free station | P1 | at least one non-free station | Same call on its id | 404 (API doesn't distinguish "not free" from "unknown" here) | `tests/catalog/radio.spec.ts` |
-| RADIO-09 | Stream URL is signed per request | P2 | a free station | Call play twice | The two `url` values differ | — |
+| RADIO-09 | Stream URL is signed per request | P2 | a free station | Call play twice | The two `url` values differ | `tests/catalog/radio.spec.ts` |
 
 ## 3. Interface
 
@@ -96,7 +96,7 @@ a couple of boundary/uniqueness checks not yet worth a dedicated test.
 | PAGE-02 | `details` page exists in every install | P1 | none | GET `/pages/details` | 200; `slug == "details"` | `tests/interface/pages.spec.ts` |
 | PAGE-03 | Unknown slug | P0 | none | GET `/pages/does-not-exist` | 404; `error` schema | `tests/interface/pages.spec.ts` |
 | PAGE-04 | `radio` slug is reserved | P2 | dashboard access | Try to create a dashboard page that slugifies to `radio` | Dashboard refuses to create it | — (needs dashboard access) |
-| PAGE-05 | Layout carries no per-client item count | P2 | none | Inspect a dashboard `blockSummary` item | No `count` field (unlike the radio page's item, which has one) | — |
+| PAGE-05 | Layout carries no per-client item count | P2 | none | Inspect a dashboard `blockSummary` item | No `count` field (unlike the radio page's item, which has one) | `tests/interface/pages.spec.ts` |
 
 ### 3.2 Blocks — `GET /pages/{slug}/blocks/{id}`
 

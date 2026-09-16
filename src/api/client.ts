@@ -24,6 +24,11 @@ export class FreeApiClient {
     return this.request.post('login', { data: body });
   }
 
+  /** GET on the /login route, which only documents POST — for the wrong-method case. */
+  getLogin(): Promise<APIResponse> {
+    return this.request.get('login');
+  }
+
   getServices(): Promise<APIResponse> {
     return this.request.get('services');
   }

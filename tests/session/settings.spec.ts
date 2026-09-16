@@ -23,4 +23,9 @@ test.describe('GET /settings', () => {
   test('catch-up is disabled, per the free API contract', async ({ settingsBody }) => {
     expect(settingsBody.body.catchup.enabled).toBe(0);
   });
+
+  test('catch-up window matches the documented defaults', async ({ settingsBody }) => {
+    expect(settingsBody.body.catchup.delay).toBe(60);
+    expect(settingsBody.body.catchup.length).toBe(1209480);
+  });
 });

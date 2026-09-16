@@ -85,4 +85,38 @@ test.describe('POST /login', () => {
     const body: ValidationError = await res.json();
     expect(body.errors).toHaveProperty('device');
   });
+
+  test('accepts a serial field of exactly 255 characters (the documented boundary)', async ({ api }) => {
+    const res = await api.login({ device: 'playwright-suite', serial: 's'.repeat(255) });
+    expect(res.status()).toBe(200);
+  });
+
+  test('rejects a serial field longer than 255 characters with 422', async ({ api }) => {
+    const res = await api.login({ device: 'playwright-suite', serial: 's'.repeat(256) });
+    expect(res.status()).toBe(422);
+
+    const body: ValidationError = await res.json();
+    expect(body.errors).toHaveProperty('serial');
+  });
+
+  test('accepts an unknown extra field in the body', async ({ api }) => {
+    // The request schema declares additionalProperties: false, but the live server
+    // doesn't enforce it — this pins the actual (lenient) behaviour, not the spec.
+    const res = await api.loginRaw({ device: 'playwright-suite', serial: `pw-${Date.now()}`, foo: 'bar' });
+    expect(res.status()).toBe(200);
+  });
+
+  test('different devices get different security tokens', async ({ api }) => {
+    const [first, second] = await Promise.all([
+      api.login({ device: 'playwright-suite-a', serial: `pw-a-${Date.now()}` }),
+      api.login({ device: 'playwright-suite-b', serial: `pw-b-${Date.now()}` }),
+    ]);
+    const [firstJson, secondJson]: LoginResponse[] = await Promise.all([first.json(), second.json()]);
+    expect(secondJson.security).not.toBe(firstJson.security);
+  });
+
+  test('only POST is supported', async ({ api }) => {
+    const res = await api.getLogin();
+    expect(res.status()).toBe(405);
+  });
 });

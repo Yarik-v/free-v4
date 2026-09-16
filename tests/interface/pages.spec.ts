@@ -37,6 +37,12 @@ test.describe('GET /pages/{slug}', () => {
     expectRateLimitHeaders(res);
     expectValidSchema('error', await res.json());
   });
+
+  test('layout items carry no per-client count, unlike the radio page', async ({ dashboardPage }) => {
+    for (const summary of dashboardPage.items) {
+      expect(summary).not.toHaveProperty('count');
+    }
+  });
 });
 
 test.describe('GET /pages/radio', () => {

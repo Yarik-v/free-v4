@@ -58,4 +58,17 @@ test.describe('GET /channels/{channel}/play', () => {
     const res = await api.playRadioChannel(nonFree!.id);
     expect(res.status()).toBe(404);
   });
+
+  test('the stream URL is signed fresh on every call', async ({ api, freeRadioChannel }) => {
+    test.skip(!freeRadioChannel, 'No station is currently marked free in the radio configuration.');
+
+    const [first, second] = await Promise.all([
+      api.playRadioChannel(freeRadioChannel!.id),
+      api.playRadioChannel(freeRadioChannel!.id),
+    ]);
+    test.skip(first.status() !== 200, 'Station is no longer free.');
+
+    const [firstBody, secondBody] = await Promise.all([first.json(), second.json()]);
+    expect(secondBody.url).not.toBe(firstBody.url);
+  });
 });

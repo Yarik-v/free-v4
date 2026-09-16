@@ -94,4 +94,17 @@ test.describe('GET /content/{service}/free/{id}/play', () => {
     const res = await api.playFreeContent('mediateka', 'does-not-exist-00000000');
     expect(res.status()).toBe(404);
   });
+
+  test('the stream URL is signed fresh on every call', async ({ api, sampleContent, sampleContentDetails }) => {
+    test.skip(!sampleContent, NO_SAMPLE_CONTENT);
+    test.skip(sampleContentDetails!.res.status() !== 200, 'Discovered title is not currently available.');
+    const { service, id } = sampleContent!;
+    test.skip(!sampleContentDetails!.body.play_url, 'Discovered title has no play_url.');
+
+    const [first, second] = await Promise.all([api.playFreeContent(service, id), api.playFreeContent(service, id)]);
+    test.skip(first.status() !== 200, 'Discovered title is not currently free.');
+
+    const [firstBody, secondBody] = await Promise.all([first.json(), second.json()]);
+    expect(secondBody.url).not.toBe(firstBody.url);
+  });
 });
