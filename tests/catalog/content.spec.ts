@@ -1,19 +1,10 @@
-import { test, expect } from '../fixtures';
+import { test, expect, findCard } from '../fixtures';
 import { expectCacheControlHeader, expectCorsHeader, expectRateLimitHeaders, expectValidSchema } from '../../src/api/assertions';
-import type { Block, ContentCard, ContentDetails } from '../../src/api/types';
+import type { ContentDetails } from '../../src/api/types';
 
 const NO_SAMPLE_CONTENT = 'No title with a live details_url found on the dashboard right now.';
-
-/** First premierone card labeled `kind: movie` in any dashboard block, if there is one. */
-function findPremiereMovie(dashboardBlocks: Array<{ body: Block }>): ContentCard | undefined {
-  for (const { body: block } of dashboardBlocks) {
-    const found = block.items.find(
-      (item): item is ContentCard => 'service' in item && item.service === 'premierone' && item.kind === 'movie',
-    );
-    if (found) return found;
-  }
-  return undefined;
-}
+const findPremiereMovie = (dashboardBlocks: Parameters<typeof findCard>[0]) =>
+  findCard(dashboardBlocks, (card) => card.service === 'premierone' && card.kind === 'movie');
 
 test.describe('GET /content/{service}/{id}', () => {
   test('returns full details for a title discovered from the dashboard', async ({ sampleContent, sampleContentDetails }) => {

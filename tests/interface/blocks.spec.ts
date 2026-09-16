@@ -1,7 +1,7 @@
-import { test, expect } from '../fixtures';
+import { test, expect, findBlockOfType } from '../fixtures';
 import { expectCacheControlHeader, expectCorsHeader, expectRateLimitHeaders, expectValidSchema } from '../../src/api/assertions';
 import { TITLE_BLOCK_TYPES } from '../../src/api/types';
-import type { ContentCard, ImageCard } from '../../src/api/types';
+import type { ContentCard } from '../../src/api/types';
 
 test.describe('GET /pages/{slug}/blocks/{id}', () => {
   test('every block on the dashboard matches the block schema and its declared item shape', async ({
@@ -9,15 +9,18 @@ test.describe('GET /pages/{slug}/blocks/{id}', () => {
     dashboardBlocks,
   }) => {
     expect(dashboardPage.items.length).toBeGreaterThan(0);
+    expect(dashboardBlocks).toHaveLength(dashboardPage.items.length);
 
-    for (const { res, body: block } of dashboardBlocks) {
-      expect(res.status(), `block ${block.id} (${block.type})`).toBe(200);
+    for (let i = 0; i < dashboardBlocks.length; i++) {
+      const summary = dashboardPage.items[i]!;
+      const { res, body: block } = dashboardBlocks[i]!;
+      expect(res.status(), `block ${summary.id} (${summary.type})`).toBe(200);
       expectRateLimitHeaders(res);
       expectCacheControlHeader(res);
       expectCorsHeader(res);
 
       expectValidSchema('block', block);
-      expect(dashboardPage.items.some((summary) => summary.id === block.id), `block ${block.id} listed on the page`).toBe(true);
+      expect(block.id).toBe(summary.id);
       expect(block.count).toBe(block.items.length);
 
       if (TITLE_BLOCK_TYPES.has(block.type)) {
@@ -27,9 +30,8 @@ test.describe('GET /pages/{slug}/blocks/{id}', () => {
         }
       } else if (block.type === 'images') {
         for (const item of block.items) {
-          const card = item as ImageCard;
-          expect(card).toHaveProperty('image');
-          expect(card).toHaveProperty('link');
+          expect(item).toHaveProperty('image');
+          expect(item).toHaveProperty('link');
         }
       } else if (block.type === 'promo') {
         expect(block.items).toEqual([]);
@@ -38,7 +40,7 @@ test.describe('GET /pages/{slug}/blocks/{id}', () => {
   });
 
   test('slider posters are only resized, never decorated with a badge or logo', async ({ dashboardBlocks }) => {
-    const slider = dashboardBlocks.find(({ body }) => body.type === 'slider');
+    const slider = findBlockOfType(dashboardBlocks, 'slider');
     test.skip(!slider, 'No slider block on the dashboard right now.');
 
     const poster = (slider!.body.items[0] as ContentCard | undefined)?.images.poster;
@@ -49,7 +51,7 @@ test.describe('GET /pages/{slug}/blocks/{id}', () => {
   });
 
   test('numeric block posters carry a badge_num', async ({ dashboardBlocks }) => {
-    const numeric = dashboardBlocks.find(({ body }) => body.type === 'numeric');
+    const numeric = findBlockOfType(dashboardBlocks, 'numeric');
     test.skip(!numeric, 'No numeric block on the dashboard right now.');
 
     const poster = (numeric!.body.items[0] as ContentCard | undefined)?.images.poster;
@@ -59,7 +61,7 @@ test.describe('GET /pages/{slug}/blocks/{id}', () => {
   });
 
   test('a promo block only carries the fields the dashboard actually set', async ({ dashboardBlocks }) => {
-    const promo = dashboardBlocks.find(({ body }) => body.type === 'promo');
+    const promo = findBlockOfType(dashboardBlocks, 'promo');
     test.skip(!promo, 'No promo block on the dashboard right now.');
     test.skip(!promo!.body.block_data, 'This promo block carries no block_data.');
 

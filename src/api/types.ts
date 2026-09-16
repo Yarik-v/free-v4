@@ -30,15 +30,13 @@ export type ServiceId = (typeof SERVICE_IDS)[number];
 export const BLOCK_TYPES = ['slider', 'list', 'list_horizontal', 'numeric', 'action_list', 'images', 'promo'] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
-/** Block types that carry contentCard items, in the `block` (GET .../blocks/{id}) response's own vocabulary. */
-export const TITLE_BLOCK_TYPES = new Set<BlockType>(['slider', 'list', 'list_horizontal', 'numeric', 'action_list']);
-
 /**
- * The same title-block types, but in the `blockSummary` (GET /pages/{slug}) vocabulary:
- * that endpoint reports `list_horizontal` and `numeric` as `small_list` and `counter`.
- * Filtering a page's `items` must use this set, not `TITLE_BLOCK_TYPES`.
+ * Block types that carry contentCard items, in the `block` (GET .../blocks/{id}) response's
+ * own vocabulary. Note the `blockSummary` (GET /pages/{slug}) endpoint uses a DIFFERENT
+ * vocabulary for the same types — it reports `list_horizontal`/`numeric` as
+ * `small_list`/`counter` — so this set must never be used to filter `page.items` directly.
  */
-export const TITLE_BLOCK_SUMMARY_TYPES = new Set(['slider', 'list', 'small_list', 'counter', 'action_list']);
+export const TITLE_BLOCK_TYPES = new Set<BlockType>(['slider', 'list', 'list_horizontal', 'numeric', 'action_list']);
 
 export interface BlockSummary {
   id: string;

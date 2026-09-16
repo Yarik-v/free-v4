@@ -24,6 +24,23 @@ interface Cached<T> {
   body: T;
 }
 
+/** First block among `dashboardBlocks` of the given block-detail type, if any. */
+export function findBlockOfType(dashboardBlocks: Cached<Block>[], type: Block['type']): Cached<Block> | undefined {
+  return dashboardBlocks.find(({ body }) => body.type === type);
+}
+
+/** First contentCard across every `dashboardBlocks` item matching `predicate`, if any. */
+export function findCard(
+  dashboardBlocks: Cached<Block>[],
+  predicate: (card: ContentCard) => boolean,
+): ContentCard | undefined {
+  for (const { body: block } of dashboardBlocks) {
+    const card = block.items.find((item): item is ContentCard => 'details_url' in item && predicate(item));
+    if (card) return card;
+  }
+  return undefined;
+}
+
 interface Fixtures {
   api: FreeApiClient;
 }
@@ -39,18 +56,30 @@ interface WorkerFixtures {
   settingsBody: Cached<Settings>;
   /** GET /pages/radio/channel-group, fetched once per worker and shared by every radio test. */
   radioGroupBlock: Cached<RadioGroupBlock>;
-  /** Every block listed on the dashboard, fetched once per worker and shared by every test that needs one. */
+  /**
+   * Every block listed on the dashboard, fetched once per worker and shared by every
+   * test that needs one. Playwright may run a spec file's tests across several
+   * workers, each with its own snapshot — two tests discovering "the same" live
+   * card from this fixture are only guaranteed to agree within a single worker, not
+   * across the whole file.
+   */
   dashboardBlocks: Cached<Block>[];
   /**
-   * A real `{service, id}` pair discovered by walking the dashboard's title blocks,
-   * for tests that need a live content details page. `null` when the dashboard
-   * currently has no title block with at least one visible card (tests depending on
-   * it should skip rather than fail in that case). Throws if every title block on
-   * the page failed to load, since that signals an outage rather than "nothing free
-   * today".
+   * A real `{service, id}` pair discovered by scanning `dashboardBlocks` for a card
+   * with a `details_url`. `null` when the dashboard currently has no such card
+   * (tests depending on it should skip rather than fail in that case) — an actual
+   * outage is already caught earlier, by `dashboardBlocks` throwing.
    */
   sampleContent: DiscoveredContent | null;
-  /** GET /content/{service}/{id} for `sampleContent`, fetched once and shared by every test that needs it. */
+  /**
+   * GET /content/{service}/{id} for `sampleContent`, fetched once and shared by
+   * every test that needs it. Unlike its sibling fixtures, this one does NOT throw
+   * on a non-2xx response: the discovered title can legitimately go non-free or
+   * disappear between discovery and this fetch (the same race `playFreeContent`
+   * tests already tolerate), so a 403/404 here is expected, not an outage. `body`
+   * is only meaningfully `ContentDetails`-shaped when `res.status() === 200` —
+   * every consumer must check that before reading fields off it.
+   */
   sampleContentDetails: Cached<ContentDetails> | null;
   /** A station with a play_url from `radioGroupBlock`, or null if none is free right now. */
   freeRadioChannel: RadioCard | null;
@@ -126,21 +155,19 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
 
   dashboardBlocks: [
     async ({ workerApi, dashboardPage }, use) => {
-      const results: Cached<Block>[] = [];
-      const failures: string[] = [];
-
-      for (const summary of dashboardPage.items) {
-        const res = await workerApi.getPageBlock(dashboardPage.slug, summary.id);
-        if (!res.ok()) {
-          failures.push(`${summary.id}: ${res.status()}`);
-          continue;
-        }
-        results.push({ res, body: await res.json() });
-      }
-
-      if (results.length === 0 && dashboardPage.items.length > 0) {
-        throw new Error(`Fixture setup failed: every dashboard block request errored (${failures.join(', ')})`);
-      }
+      // Every listed block is expected to be fetchable — like the sibling fixtures
+      // above, fail loudly (and immediately) on the first one that isn't, rather
+      // than silently dropping it from the result. Fetched concurrently: requests
+      // are independent and the API's budget is per-minute, not per-concurrency.
+      const results = await Promise.all(
+        dashboardPage.items.map(async (summary): Promise<Cached<Block>> => {
+          const res = await workerApi.getPageBlock(dashboardPage.slug, summary.id);
+          if (!res.ok()) {
+            throw new Error(`Fixture setup failed: GET block ${summary.id} (${summary.type}) returned ${res.status()}`);
+          }
+          return { res, body: await res.json() };
+        }),
+      );
 
       await use(results);
     },
@@ -151,17 +178,8 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     async ({ dashboardBlocks }, use) => {
       // No need to filter by block type first: a title-bearing item is simply one
       // with a details_url, regardless of which block type carries it.
-      let found: DiscoveredContent | null = null;
-      for (const { body: block } of dashboardBlocks) {
-        const card = block.items.find(
-          (item): item is ContentCard => 'details_url' in item && Boolean(item.details_url),
-        );
-        if (card) {
-          found = { service: card.service, id: card.id, card };
-          break;
-        }
-      }
-      await use(found);
+      const card = findCard(dashboardBlocks, (item) => Boolean(item.details_url));
+      await use(card ? { service: card.service, id: card.id, card } : null);
     },
     { scope: 'worker' },
   ],
