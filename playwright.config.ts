@@ -12,7 +12,7 @@ export default defineConfig({
   workers: process.env.CI ? 4 : 6,
   reporter: process.env.CI
     ? [['github'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]]
-    : [['./src/reporters/failuresOnly.ts'], ['html', { open: 'never' }]],
+    : [['./src/reporters/failuresOnly.ts'], ['./src/reporters/htmlReport.ts']],
   timeout: 30_000,
   expect: { timeout: 10_000 },
   use: {

@@ -1,8 +1,20 @@
 import { stripVTControlCharacters } from 'node:util';
-import type { FullConfig, FullResult, Reporter, Suite, TestCase } from '@playwright/test/reporter';
+import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestError } from '@playwright/test/reporter';
 import { host } from '../config';
 
-const MAX_ERROR_LINES = 4;
+function printError(error: TestError): void {
+  if (error.message) {
+    for (const line of stripVTControlCharacters(error.message).split('\n')) {
+      console.log(`  ${line}`);
+    }
+  }
+  if (error.snippet) {
+    console.log('');
+    for (const line of stripVTControlCharacters(error.snippet).split('\n')) {
+      console.log(`  ${line}`);
+    }
+  }
+}
 
 /**
  * Minimal reporter for local runs: prints the run's start time and a pass/fail/skip
@@ -58,17 +70,25 @@ export default class FailuresOnlyReporter implements Reporter {
     console.log(`FAILED (${failures.length}):`);
     for (const test of failures) {
       const lastResult = test.results[test.results.length - 1];
-      console.log(`\n✘ ${test.titlePath().slice(1).join(' › ')}`);
-      console.log(`  ${test.location.file}:${test.location.line}`);
-      const rawMessage = lastResult?.error?.message;
-      if (rawMessage) {
-        const lines = stripVTControlCharacters(rawMessage).split('\n').filter((line) => line.trim() !== '');
-        for (const line of lines.slice(0, MAX_ERROR_LINES)) {
-          console.log(`  ${line}`);
-        }
-        if (lines.length > MAX_ERROR_LINES) console.log(`  ... (${lines.length - MAX_ERROR_LINES} more lines)`);
+      console.log(`\n${'='.repeat(80)}`);
+      console.log(`✘ ${test.titlePath().slice(1).join(' › ')}`);
+      console.log(`  ${test.location.file}:${test.location.line}\n`);
+
+      const errors = lastResult?.errors ?? [];
+      if (errors.length === 0) {
+        console.log('  (no error details captured)');
+      }
+      errors.forEach((error, i) => {
+        if (i > 0) console.log('');
+        printError(error);
+      });
+
+      const stdout = lastResult?.stdout.map((c) => c.toString()).join('') ?? '';
+      if (stdout.trim()) {
+        console.log('\n  stdout:');
+        for (const line of stdout.trimEnd().split('\n')) console.log(`  ${line}`);
       }
     }
-    console.log('');
+    console.log(`${'='.repeat(80)}\n`);
   }
 }
