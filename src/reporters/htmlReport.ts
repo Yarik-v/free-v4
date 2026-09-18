@@ -72,6 +72,15 @@ export default class HtmlReporter implements Reporter {
   .banner { background: ${statusColor}; color: white; padding: 20px 24px; border-radius: 8px; margin-bottom: 20px; }
   .banner h1 { margin: 0 0 4px; font-size: 1.4em; }
   .banner .meta { opacity: 0.9; font-size: 0.95em; }
+  .stats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+  .stat { flex: 1; min-width: 100px; background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .stat-num { font-size: 3em; font-weight: 700; line-height: 1; }
+  .stat-label { font-size: 0.85em; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+  .stat-total .stat-num { color: #222; }
+  .stat-pass .stat-num { color: #1e7e34; }
+  .stat-skip .stat-num { color: #8a6d00; }
+  .stat-flaky .stat-num { color: #b06a00; }
+  .stat-fail .stat-num { color: #b02a2a; }
   .card { background: white; border-left: 4px solid ${statusColor}; border-radius: 6px; padding: 14px 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
   .card-title { font-weight: 600; margin-bottom: 4px; }
   .card-loc { color: #666; font-size: 0.85em; margin-bottom: 8px; font-family: monospace; }
@@ -85,7 +94,14 @@ export default class HtmlReporter implements Reporter {
 <body>
   <div class="banner">
     <h1>${statusText}</h1>
-    <div class="meta">${startedLabel} · host: ${host} · ${tests.length} tests · ${passed} passed · ${skipped} skipped · ${failures.length} failed${flaky > 0 ? ` · ${flaky} flaky` : ''} · ${durationSec}s</div>
+    <div class="meta">${startedLabel} · host: ${host} · ${durationSec}s</div>
+  </div>
+  <div class="stats">
+    <div class="stat stat-total"><div class="stat-num">${tests.length}</div><div class="stat-label">tests</div></div>
+    <div class="stat stat-pass"><div class="stat-num">${passed}</div><div class="stat-label">passed</div></div>
+    <div class="stat stat-skip"><div class="stat-num">${skipped}</div><div class="stat-label">skipped</div></div>
+    ${flaky > 0 ? `<div class="stat stat-flaky"><div class="stat-num">${flaky}</div><div class="stat-label">flaky</div></div>` : ''}
+    <div class="stat stat-fail"><div class="stat-num">${failures.length}</div><div class="stat-label">failed</div></div>
   </div>
   ${ok ? '<p class="empty">No failures. ✅</p>' : cards}
 </body>
