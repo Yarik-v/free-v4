@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { stripVTControlCharacters } from 'node:util';
-import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestError } from '@playwright/test/reporter';
+import type { FullConfig, FullResult, Reporter, Suite } from '@playwright/test/reporter';
 import { host } from '../config';
+import { collectRunSummary, lastAttemptErrors, lastAttemptStdout, lastAttemptTracePath } from './runSummary';
 
 const OUT_PATH = 'test-results/latest.html';
 
@@ -9,18 +9,13 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-/** Full message plus the code-frame snippet, if Playwright captured one — nothing truncated. */
-function renderError(error: TestError): string {
-  const parts: string[] = [];
-  if (error.message) parts.push(stripVTControlCharacters(error.message));
-  if (error.snippet) parts.push(stripVTControlCharacters(error.snippet));
-  return escapeHtml(parts.join('\n\n'));
-}
-
 /**
- * Single self-contained HTML file, overwritten every run: a big red/green status
- * banner with the run time, then one card per FAILED test with its full error and
- * code-frame snippet. Passing tests are only a number in the banner — unlike
+ * Single self-contained HTML file, overwritten every run on purpose: this is a
+ * quick at-a-glance view of the MOST RECENT run only, not a history — if you need
+ * to compare against an earlier failure, that's what terminal scrollback (or
+ * re-running) is for. A big red/green status banner with the run time, then one
+ * card per FAILED test with its full error, code-frame snippet, captured stdout
+ * and trace path. Passing tests are only a number in the banner — unlike
  * Playwright's own `html` reporter, this never lists a test that didn't fail.
  */
 export default class HtmlReporter implements Reporter {
@@ -33,29 +28,7 @@ export default class HtmlReporter implements Reporter {
   }
 
   onEnd(_result: FullResult): void {
-    const tests = this.rootSuite.allTests();
-    const durationSec = ((Date.now() - this.startedAt.getTime()) / 1000).toFixed(1);
-
-    let passed = 0;
-    let skipped = 0;
-    let flaky = 0;
-    const failures: TestCase[] = [];
-
-    for (const test of tests) {
-      switch (test.outcome()) {
-        case 'skipped':
-          skipped++;
-          break;
-        case 'expected':
-          passed++;
-          break;
-        case 'flaky':
-          flaky++;
-          break;
-        default:
-          failures.push(test);
-      }
-    }
+    const { tests, passed, skipped, flaky, failures, durationSec } = collectRunSummary(this.rootSuite, this.startedAt);
 
     const ok = failures.length === 0;
     const statusColor = ok ? '#1e7e34' : '#b02a2a';
@@ -64,15 +37,27 @@ export default class HtmlReporter implements Reporter {
 
     const cards = failures
       .map((test) => {
-        const lastResult = test.results[test.results.length - 1];
-        const errorsHtml = (lastResult?.errors ?? [])
-          .map((error) => `<pre>${renderError(error)}</pre>`)
+        const errorsHtml = lastAttemptErrors(test)
+          .map((e) => `<pre>${escapeHtml([e.message, e.snippet].filter(Boolean).join('\n\n'))}</pre>`)
           .join('\n');
+
+        const stdout = lastAttemptStdout(test);
+        const stdoutHtml = stdout.trim()
+          ? `<div class="section-label">stdout</div><pre>${escapeHtml(stdout.trimEnd())}</pre>`
+          : '';
+
+        const tracePath = lastAttemptTracePath(test);
+        const traceHtml = tracePath
+          ? `<div class="trace">Trace: <code>npx playwright show-trace ${escapeHtml(tracePath)}</code></div>`
+          : '';
+
         return `
     <div class="card">
       <div class="card-title">✘ ${escapeHtml(test.titlePath().slice(1).join(' › '))}</div>
       <div class="card-loc">${escapeHtml(test.location.file)}:${test.location.line}</div>
       ${errorsHtml || '<p><em>(no error details captured)</em></p>'}
+      ${stdoutHtml}
+      ${traceHtml}
     </div>`;
       })
       .join('\n');
@@ -90,6 +75,9 @@ export default class HtmlReporter implements Reporter {
   .card { background: white; border-left: 4px solid ${statusColor}; border-radius: 6px; padding: 14px 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
   .card-title { font-weight: 600; margin-bottom: 4px; }
   .card-loc { color: #666; font-size: 0.85em; margin-bottom: 8px; font-family: monospace; }
+  .section-label { color: #666; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
+  .trace { margin-top: 10px; font-size: 0.85em; color: #444; }
+  .trace code { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 2px 6px; }
   pre { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 10px; overflow-x: auto; font-size: 0.85em; white-space: pre-wrap; margin: 8px 0; }
   .empty { color: #1e7e34; font-weight: 600; }
 </style>
