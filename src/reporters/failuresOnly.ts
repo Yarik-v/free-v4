@@ -1,25 +1,13 @@
-import { stripVTControlCharacters } from 'node:util';
-import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestError } from '@playwright/test/reporter';
+import type { FullConfig, FullResult, Reporter, Suite } from '@playwright/test/reporter';
 import { host } from '../config';
-
-function printError(error: TestError): void {
-  if (error.message) {
-    for (const line of stripVTControlCharacters(error.message).split('\n')) {
-      console.log(`  ${line}`);
-    }
-  }
-  if (error.snippet) {
-    console.log('');
-    for (const line of stripVTControlCharacters(error.snippet).split('\n')) {
-      console.log(`  ${line}`);
-    }
-  }
-}
+import { collectRunSummary, lastAttemptErrors, lastAttemptStdout, lastAttemptTracePath } from './runSummary';
 
 /**
  * Minimal reporter for local runs: prints the run's start time and a pass/fail/skip
  * summary, then full detail ONLY for tests that actually failed — no per-passing-test
- * noise. Register alongside (not instead of) `html`/`junit` if a full trace is needed.
+ * noise. Pairs with `./htmlReport.ts` (same failure data, rendered as a static page);
+ * neither replaces `use.trace` — a failed test's trace.zip is still written, and its
+ * path is printed below so it stays inspectable via `playwright show-trace`.
  */
 export default class FailuresOnlyReporter implements Reporter {
   private startedAt = new Date();
@@ -32,29 +20,7 @@ export default class FailuresOnlyReporter implements Reporter {
   }
 
   onEnd(_result: FullResult): void {
-    const tests = this.rootSuite.allTests();
-    const durationSec = ((Date.now() - this.startedAt.getTime()) / 1000).toFixed(1);
-
-    let passed = 0;
-    let skipped = 0;
-    let flaky = 0;
-    const failures: TestCase[] = [];
-
-    for (const test of tests) {
-      switch (test.outcome()) {
-        case 'skipped':
-          skipped++;
-          break;
-        case 'expected':
-          passed++;
-          break;
-        case 'flaky':
-          flaky++;
-          break;
-        default:
-          failures.push(test);
-      }
-    }
+    const { tests, passed, skipped, flaky, failures, durationSec } = collectRunSummary(this.rootSuite, this.startedAt);
 
     console.log(
       `${tests.length} tests — ${passed} passed, ${skipped} skipped, ${failures.length} failed` +
@@ -69,25 +35,29 @@ export default class FailuresOnlyReporter implements Reporter {
 
     console.log(`FAILED (${failures.length}):`);
     for (const test of failures) {
-      const lastResult = test.results[test.results.length - 1];
       console.log(`\n${'='.repeat(80)}`);
       console.log(`✘ ${test.titlePath().slice(1).join(' › ')}`);
       console.log(`  ${test.location.file}:${test.location.line}\n`);
 
-      const errors = lastResult?.errors ?? [];
-      if (errors.length === 0) {
-        console.log('  (no error details captured)');
-      }
-      errors.forEach((error, i) => {
+      const errors = lastAttemptErrors(test);
+      if (errors.length === 0) console.log('  (no error details captured)');
+      errors.forEach(({ message, snippet }, i) => {
         if (i > 0) console.log('');
-        printError(error);
+        if (message) for (const line of message.split('\n')) console.log(`  ${line}`);
+        if (snippet) {
+          console.log('');
+          for (const line of snippet.split('\n')) console.log(`  ${line}`);
+        }
       });
 
-      const stdout = lastResult?.stdout.map((c) => c.toString()).join('') ?? '';
+      const stdout = lastAttemptStdout(test);
       if (stdout.trim()) {
         console.log('\n  stdout:');
         for (const line of stdout.trimEnd().split('\n')) console.log(`  ${line}`);
       }
+
+      const tracePath = lastAttemptTracePath(test);
+      if (tracePath) console.log(`\n  Trace: npx playwright show-trace ${tracePath}`);
     }
     console.log(`${'='.repeat(80)}\n`);
   }
