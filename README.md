@@ -57,27 +57,32 @@ a different host by setting `UI_BASE_URL`.
   skipped tests.
 - `tests/session`, `tests/catalog`, `tests/interface` mirror the doc's own tag groups
   (Session, Catalog, Interface).
-- `ui-tests/` — the `browser-ui` project. Tests the same catalogue the API backs
-  (dashboard, title details, player, catalog, radio) but through the real web client
-  at `https://playtest.kartina.tv`, not the API directly. Out of scope: account
-  settings, subscriptions, purchases. Where a card has no stable URL (the
-  dashboard's slider/list items are plain buttons, not links — client-side
-  routing), specs assert on accessible role/text rather than hardcoding a title, the
-  same discover-don't-hardcode approach `tests/fixtures.ts` uses for live API data.
+- `ui-tests/` — the `browser-ui` project. Tests the real web client at
+  `https://playtest.kartina.tv` — dashboard, title details, player, catalog, radio —
+  not the API directly. **Runs as a real (subscriber) session, not the API's anonymous
+  model**: there's no public anonymous entry into the web client (see "Browser UI
+  tests: session" below), so what these tests see includes account-specific state the
+  Free API never has — watch progress ("Продолжить: HH:MM" instead of "Смотреть"),
+  favorites, personalized recommendations. Don't assume Free-API invariants
+  (`progress` always null, `favorite` always false, etc.) hold here; assert on what the
+  UI actually does. Where a card has no stable URL (the dashboard's slider/list items
+  are plain buttons, not links — client-side routing), specs assert on accessible
+  role/text rather than hardcoding a title, the same discover-don't-hardcode approach
+  `tests/fixtures.ts` uses for live API data.
 
 ### Browser UI tests: session
 
-Even though the Free API itself needs no auth, a completely fresh, cookie-less
-visit to `UI_BASE_URL` (the actual web client) lands on a login/landing page
-instead of the dashboard — reaching `/home` needs *some* session, and there's no
+A completely fresh, cookie-less visit to `UI_BASE_URL` lands on a login/landing page
+instead of the dashboard — reaching `/home` needs a real session, and there's no
 public URL that bootstraps one anonymously (the "Бесплатная версия" link on that
 landing page just goes to the marketing site, `www.kartina.tv`; it isn't a guest
-login). This looks like a real gap between the documented anonymous API and the
-web client's actual behavior, worth raising with whoever owns the frontend rather
-than working around it further here.
+login). Confirmed on both `play.kartina.tv` and `playtest.kartina.tv`. This is a real
+gap between the documented anonymous Free API and the web client's actual behavior,
+worth raising with whoever owns the frontend if a true anonymous flow is expected to
+exist — not something to route around further here.
 
-Until that's resolved, `ui-tests/fixtures.ts` needs a saved session to run past
-the landing page. Generate your own locally (never commit it — already
+Until (and unless) that's resolved, `ui-tests/fixtures.ts` needs a saved session to
+run past the landing page. Generate your own locally (never commit it — already
 `.gitignore`d):
 
 ```bash

@@ -1,11 +1,11 @@
 import { test, expect } from './fixtures';
 
 /**
- * Smoke coverage for the anonymous dashboard at /home. Proves the browser
- * project works end to end before later specs build on it (content details,
- * player, catalog, radio). Assertions stick to accessible roles/text — the
- * slider's title cards are plain buttons with no stable href (client-side
- * routing), so this deliberately doesn't assert on any specific title.
+ * Smoke coverage for the dashboard at /home. Proves the browser project works
+ * end to end before later specs build on it (content details, player, catalog,
+ * radio). Assertions stick to accessible roles/text — the slider's title cards
+ * are plain buttons with no stable href (client-side routing), so this
+ * deliberately doesn't assert on any specific title.
  */
 test.describe('/home — dashboard', () => {
   test('loads with the top navigation visible', async ({ page }) => {
@@ -14,7 +14,9 @@ test.describe('/home — dashboard', () => {
   });
 
   test('renders the hero slider with real title cards', async ({ page }) => {
-    const watchButtons = page.getByRole('button', { name: 'Смотреть' });
+    // "Продолжить: HH:MM" instead of "Смотреть" on titles this account already
+    // has watch progress on — both are valid, this is a real subscriber session.
+    const watchButtons = page.getByRole('button', { name: /^(Смотреть|Продолжить)/ });
     await expect(watchButtons.first()).toBeVisible();
     expect(await watchButtons.count()).toBeGreaterThan(0);
   });
