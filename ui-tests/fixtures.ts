@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * Shared base for browser UI tests. A fresh, cookie-less visit to `/home` lands
@@ -35,5 +35,39 @@ export const test = base.extend<{ dashboardHome: void }>({
     { auto: true },
   ],
 });
+
+/**
+ * Opens a service's catalog page (e.g. "START" → /vod/startru) via an in-app
+ * click, not `page.goto()`: a direct full-page navigation to `/vod/{service}`
+ * bounces back to `/home` — confirmed live, the SPA doesn't hydrate that route
+ * from a cold load, only from client-side routing. Call after `dashboardHome`
+ * (an auto fixture, so any test using `test` from this module already has it).
+ */
+export async function openCatalog(page: Page, serviceName: string): Promise<void> {
+  await page.getByText('Видеотека', { exact: true }).hover();
+  await page.getByRole('link', { name: serviceName, exact: true }).click();
+  await page.waitForURL(/\/vod\//);
+}
+
+/**
+ * The first "Продолжить просмотр" card on the current catalog page, if the
+ * account has any — these are real `<a href="/watch/{service}/...">` links,
+ * unlike the dashboard's own title cards (plain buttons, no href). `null` when
+ * there's nothing in progress for this service right now.
+ *
+ * Waits (briefly) rather than checking `.count()` immediately: like the
+ * dashboard, the catalog page's URL/shell updates before this section's own
+ * data fetch resolves, so a bare `.count()` right after `openCatalog()` can
+ * read 0 even when the account does have continue-watching items.
+ */
+export async function firstContinueWatchingLink(page: Page): Promise<Locator | null> {
+  const link = page.locator('a[href^="/watch/"]').first();
+  try {
+    await link.waitFor({ timeout: 5_000 });
+    return link;
+  } catch {
+    return null;
+  }
+}
 
 export { expect };
