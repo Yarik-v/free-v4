@@ -15,3 +15,6 @@ export const host = resolveHost();
 // "https://{host}/free/login" instead of "https://{host}/free/v4/login".
 export const baseURL = `https://${host}/free/v4/`;
 export const fixturePageSlug = process.env.FIXTURE_PAGE_SLUG ?? 'dashboard';
+
+/** Base URL of the anonymous web dashboard the Free API backs, for browser UI tests. */
+export const uiBaseUrl = process.env.UI_BASE_URL ?? 'https://play.kartina.tv';

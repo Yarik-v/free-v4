@@ -6,3 +6,4 @@ blob-report/
 playwright/.cache/
 *.log
 .claude/
+ui-tests/.auth/
