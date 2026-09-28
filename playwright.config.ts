@@ -38,6 +38,11 @@ export default defineConfig({
     {
       name: 'browser-ui',
       testDir: './ui-tests',
+      // All tests share one real logged-in session (storageState above) — running
+      // them concurrently makes the site itself flaky (confirmed: 3/4 tests fail on
+      // page load with 6 workers, 4/4 pass reliably at workers: 1), so this project
+      // is pinned to a single worker regardless of the global default.
+      workers: 1,
       use: {
         ...devices['Desktop Chrome'],
         baseURL: uiBaseUrl,

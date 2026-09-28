@@ -22,13 +22,16 @@ test.describe('/home — dashboard', () => {
   });
 
   test('slider pagination advances to the next slide', async ({ page }) => {
-    const counter = page.getByText(/^\d+ из \d+$/);
+    // Not anchored (`^...$`) and polled by raw textContent rather than
+    // expect(...).toHaveText(): the counter's "N из M" is split across child
+    // nodes, so an exact-match locator/matcher doesn't reliably hit it.
+    const counter = page.getByText(/\d+ из \d+/).first();
     await expect(counter).toBeVisible();
     const before = await counter.textContent();
 
     await page.getByRole('button', { name: 'Next slide' }).click();
 
-    await expect(counter).not.toHaveText(before ?? '');
+    await expect.poll(() => counter.textContent()).not.toBe(before);
   });
 
   test('renders horizontal title blocks below the slider', async ({ page }) => {
