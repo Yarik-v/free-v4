@@ -6,8 +6,9 @@ Two Playwright projects:
   public, anonymous [Free API](https://pages.kartina.tv/middleware/docs/free/) —
   `https://free-dashboard.kartina.tv/free/v4`. No authentication is required; `POST /login`
   is included only because the docs describe it as part of the client start-up sequence.
-- **`browser-ui`** — end-to-end browser tests against the anonymous web dashboard the API
-  backs, `https://play.kartina.tv`. See [ui-tests/](ui-tests/) below.
+- **`browser-ui`** — end-to-end browser tests against the web client the API backs,
+  `https://playtest.kartina.tv` (the test/staging host — same naming pattern as
+  `free-dashboard-dev.kartina.tv`). See [ui-tests/](ui-tests/) below.
 
 ## Setup
 
@@ -56,12 +57,11 @@ a different host by setting `UI_BASE_URL`.
   skipped tests.
 - `tests/session`, `tests/catalog`, `tests/interface` mirror the doc's own tag groups
   (Session, Catalog, Interface).
-- `ui-tests/` — the `browser-ui` project. Tests the same anonymous experience the API
-  backs (dashboard, title details, player, catalog, radio) but through the real web
-  client at `https://play.kartina.tv`, not the API directly. Out of scope: anything
-  behind login (account, subscriptions, purchases) — `playtest.kartina.tv` is a
-  separate, subscriber-only product and isn't tested here. Where a card has no stable
-  URL (the dashboard's slider/list items are plain buttons, not links — client-side
+- `ui-tests/` — the `browser-ui` project. Tests the same catalogue the API backs
+  (dashboard, title details, player, catalog, radio) but through the real web client
+  at `https://playtest.kartina.tv`, not the API directly. Out of scope: account
+  settings, subscriptions, purchases. Where a card has no stable URL (the
+  dashboard's slider/list items are plain buttons, not links — client-side
   routing), specs assert on accessible role/text rather than hardcoding a title, the
   same discover-don't-hardcode approach `tests/fixtures.ts` uses for live API data.
 
@@ -109,9 +109,9 @@ run. Options considered, to revisit later:
 just adding the job back — no config changes needed.
 
 The `browser-ui` project is untested against CI for the same likely reason (not yet
-confirmed) — `play.kartina.tv` probably sits behind the same kind of edge protection as
-the API host. `.github/workflows/typecheck.yml` doesn't install a Chromium binary, so it
-couldn't run `browser-ui` even if it tried.
+confirmed) — `playtest.kartina.tv` probably sits behind the same kind of edge protection
+as the API host. `.github/workflows/typecheck.yml` doesn't install a Chromium binary, so
+it couldn't run `browser-ui` even if it tried.
 
 ## Notes on scope
 
