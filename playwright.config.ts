@@ -15,9 +15,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // 900 req/min per IP is shared across the whole suite; keep worker count modest
-  // so a full local run never gets near the limit.
-  workers: process.env.CI ? 4 : 6,
+  // The account's IP allows at most 5 concurrent devices/connections, total,
+  // across everything running against it — not just the 900 req/min rate limit.
+  // This is the ceiling for the whole run (both projects combined, browser-ui's
+  // own workers included below), not a per-project budget.
+  workers: process.env.CI ? 4 : 5,
   reporter: process.env.CI
     ? [['github'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]]
     : [['./src/reporters/failuresOnly.ts'], ['./src/reporters/htmlReport.ts']],

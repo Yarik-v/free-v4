@@ -29,6 +29,15 @@ npm run report                              # open the last HTML report
 npm run typecheck                           # tsc --noEmit
 ```
 
+`workers: 5` at the top of `playwright.config.ts` is a hard ceiling, not a tuning
+knob: this account's IP allows at most 5 concurrent devices/connections, total,
+across both projects combined. Raising it — or running something else against the
+same account/IP alongside `npm test` — risks tripping that limit, which can look
+like plain flakiness (a `browser-ui` assertion timing out; the same test passes
+cleanly run alone) rather than a clear rejection. If a `browser-ui` failure shows up
+from a full `npm test` run, re-run just that project
+(`npx playwright test --project=browser-ui`) before treating it as a real bug.
+
 Point the API project at a different environment by setting `API_HOST` in `.env`
 (`free-dashboard.kartina.tv`, `free-dashboard-dev.kartina.tv`, or `localhost` — the values
 allowed by the `host` server variable in `spec/openapi.yaml`). Point the browser project at
