@@ -58,17 +58,35 @@ a different host by setting `UI_BASE_URL`.
 - `tests/session`, `tests/catalog`, `tests/interface` mirror the doc's own tag groups
   (Session, Catalog, Interface).
 - `ui-tests/` — the `browser-ui` project. Tests the real web client at
-  `https://playtest.kartina.tv` — dashboard, title details, player, catalog, radio —
-  not the API directly. **Runs as a real (subscriber) session, not the API's anonymous
-  model**: there's no public anonymous entry into the web client (see "Browser UI
-  tests: session" below), so what these tests see includes account-specific state the
-  Free API never has — watch progress ("Продолжить: HH:MM" instead of "Смотреть"),
-  favorites, personalized recommendations. Don't assume Free-API invariants
-  (`progress` always null, `favorite` always false, etc.) hold here; assert on what the
-  UI actually does. Where a card has no stable URL (the dashboard's slider/list items
-  are plain buttons, not links — client-side routing), specs assert on accessible
-  role/text rather than hardcoding a title, the same discover-don't-hardcode approach
-  `tests/fixtures.ts` uses for live API data.
+  `https://playtest.kartina.tv` — dashboard, title details, player, catalog, radio,
+  favorites, nav — not the API directly. **Runs as a real (subscriber) session, not
+  the API's anonymous model**: there's no public anonymous entry into the web client
+  (see "Browser UI tests: session" below), so what these tests see includes
+  account-specific state the Free API never has — watch progress ("Продолжить: HH:MM"
+  instead of "Смотреть"), favorites, personalized recommendations. Don't assume
+  Free-API invariants (`progress` always null, `favorite` always false, etc.) hold
+  here; assert on what the UI actually does. Card links are discovered, never
+  hardcoded — the same approach `tests/fixtures.ts` uses for live API data — except
+  the dashboard's own hero slider, whose slides route via plain buttons with no href
+  (client-side routing); every other grid/row of cards (dashboard blocks, catalog,
+  favorites, search results) is a real `<a>` link.
+  - `dashboard.spec.ts` — `/home` loads, the hero slider and its title blocks render
+    with real content, slider pagination works.
+  - `content-details.spec.ts` — opening a card shows a details page
+    (title/genres/year/description/ratings/cast); the description and trailers tabs
+    both work for a movie and a series (which default to different tabs).
+  - `player.spec.ts` — opening a "Продолжить просмотр" title either plays or shows a
+    clear outcome: a "Контент не доступен" message, or (rarer, found via trace
+    inspection) a fatal stream error that silently returns to the catalog with no
+    message at all.
+  - `catalog.spec.ts` — `/vod/{service}` renders real titles for a few differently
+    branded services (START, Wink, PREMIER).
+  - `radio.spec.ts` — the "Радио" nav dropdown lists real stations; opening one plays
+    and can be paused. There's no separate station-list page — each station goes
+    straight to its own `/radio/{id}` page.
+  - `favorites-and-nav.spec.ts` — `/favorites` shows this account's real favorited
+    titles and opens one; the "Телевидение" dropdown lists real channel categories;
+    search returns real results.
 
 ### Browser UI tests: session
 
