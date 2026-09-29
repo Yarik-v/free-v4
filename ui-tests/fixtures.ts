@@ -87,4 +87,22 @@ export async function openFirstTitleDetails(page: Page): Promise<void> {
   await page.waitForURL(/\/home\/itm/);
 }
 
+/**
+ * Opens the first station's page (/radio/{id}) via the "Радио" nav dropdown —
+ * same real-link, real-click shape as `openCatalog`/`openFirstTitleDetails`.
+ * Scoped to `header .item.dropdown-icon` (not a plain text locator): a
+ * hidden, unrelated popover elsewhere on the page also contains the exact
+ * text "Радио" (confirmed live — a strict-mode violation without this scope).
+ * A plain substring `hasText`, not an anchored regex: the nav item's real
+ * textContent is `" Радио "` with surrounding spaces (confirmed live), which
+ * an exact/anchored match misses.
+ */
+export async function openFirstRadioStation(page: Page): Promise<void> {
+  await page.locator('header .item.dropdown-icon', { hasText: 'Радио' }).hover();
+  const link = page.locator('a[href^="/radio/"]').first();
+  await link.waitFor();
+  await link.click();
+  await page.waitForURL(/\/radio\//);
+}
+
 export { expect };
