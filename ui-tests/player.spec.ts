@@ -33,8 +33,11 @@ test.describe('player', () => {
     // fail by silently navigating back to the catalog page — no toast, no
     // message at all, a worse UX than the "Контент не доступен" case above. Once
     // the URL has reached /watch/, leaving it again without the toast means this
-    // is what happened, so it's treated as the same real "didn't play" outcome
-    // rather than left to time out as 'pending'.
+    // is what happened — tracked as its own outcome (not folded into
+    // 'unavailable-message') so this worse failure mode stays visible in the
+    // report instead of silently blending into the same passing result; both
+    // still count as "didn't hang" for the assertion below, since which one a
+    // real run hits depends on live backend/CDN state, not on this test's code.
     // `video.evaluate()` waits (with no timeout) for the element to attach, so
     // once we've bounced back and it's gone for good, an unguarded evaluate()
     // call would hang for the rest of the poll's budget instead of ever
@@ -42,20 +45,30 @@ test.describe('player', () => {
     // poll tick stuck on evaluate() for the full 15s). `count()` doesn't wait,
     // so it's checked first and evaluate() is only called when there's actually
     // an element to read from.
+    type Outcome = 'playing' | 'unavailable-message' | 'unavailable-silent' | 'pending';
     let reachedPlayer = false;
+    let lastOutcome: Outcome = 'pending';
+
     await expect
       .poll(
-        async () => {
-          if (await unavailable.isVisible()) return 'unavailable';
-          const onPlayerRoute = /\/watch\//.test(page.url());
-          if (onPlayerRoute) reachedPlayer = true;
-          else if (reachedPlayer) return 'unavailable';
-          if (!onPlayerRoute || (await video.count()) === 0) return 'pending';
+        async (): Promise<Outcome> => {
+          if (await unavailable.isVisible()) return (lastOutcome = 'unavailable-message');
+          if (!/\/watch\//.test(page.url())) return (lastOutcome = reachedPlayer ? 'unavailable-silent' : 'pending');
+          reachedPlayer = true;
+          if ((await video.count()) === 0) return (lastOutcome = 'pending');
           const readyState = await video.evaluate((el: HTMLVideoElement) => el.readyState).catch(() => 0);
-          return readyState > 0 ? 'playing' : 'pending';
+          return (lastOutcome = readyState > 0 ? 'playing' : 'pending');
         },
         { timeout: 15_000 },
       )
       .not.toBe('pending');
+
+    if (lastOutcome === 'unavailable-silent') {
+      test.info().annotations.push({
+        type: 'known-issue',
+        description:
+          'Player silently returned to the catalog with no message (fatal stream error) instead of showing "Контент не доступен" — see comment above.',
+      });
+    }
   });
 });

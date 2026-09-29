@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, WATCH_BUTTON_NAME } from './fixtures';
 
 /**
  * Smoke coverage for the dashboard at /home. Proves the browser project works
@@ -16,7 +16,7 @@ test.describe('/home — dashboard', () => {
   test('renders the hero slider with real title cards', async ({ page }) => {
     // "Продолжить: HH:MM" instead of "Смотреть" on titles this account already
     // has watch progress on — both are valid, this is a real subscriber session.
-    const watchButtons = page.getByRole('button', { name: /^(Смотреть|Продолжить)/ });
+    const watchButtons = page.getByRole('button', { name: WATCH_BUTTON_NAME });
     await expect(watchButtons.first()).toBeVisible();
     expect(await watchButtons.count()).toBeGreaterThan(0);
   });

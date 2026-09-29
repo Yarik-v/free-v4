@@ -1,4 +1,4 @@
-import { test, expect, openFirstRadioStation } from './fixtures';
+import { test, expect, hoverNavDropdown, openFirstRadioStation, titleHeading } from './fixtures';
 
 /**
  * Coverage for radio. There's no separate "station list" page as the plan
@@ -9,13 +9,7 @@ import { test, expect, openFirstRadioStation } from './fixtures';
  */
 test.describe('radio', () => {
   test('nav dropdown lists real stations', async ({ page }) => {
-    // Scoped to the nav item itself, not a plain text locator: a hidden,
-    // unrelated popover elsewhere on the page also contains the exact text
-    // "Радио" (confirmed live — a strict-mode violation without this scope).
-    // A plain substring `hasText`, not an anchored regex: the nav item's
-    // real textContent is `" Радио "` with surrounding spaces (confirmed
-    // live), which an exact/anchored match misses.
-    await page.locator('header .item.dropdown-icon', { hasText: 'Радио' }).hover();
+    await hoverNavDropdown(page, 'Радио');
 
     const stations = page.locator('a[href^="/radio/"]');
     await expect(stations.first()).toBeVisible();
@@ -25,12 +19,7 @@ test.describe('radio', () => {
   test('a station page plays and can be paused', async ({ page }) => {
     await openFirstRadioStation(page);
 
-    // `.title` alone is far too generic here — it's reused by nav category
-    // tabs and by every dropdown popover row, including hidden ones already
-    // in the DOM (confirmed live: 32 matches on this exact page without
-    // scoping). `.banner__info__content h2.title` is the same scoped shape
-    // already used in content-details.spec.ts for the equivalent heading.
-    await expect(page.locator('.banner__info__content h2.title')).not.toBeEmpty();
+    await expect(titleHeading(page)).not.toBeEmpty();
 
     // The play/pause button keeps the same class either way — state only
     // shows in its icon (a filled stop-square while playing, a play-triangle

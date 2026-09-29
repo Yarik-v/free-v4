@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, hoverNavDropdown, titleHeading } from './fixtures';
 
 /**
  * Coverage for /favorites and the remaining top-nav surface not already
@@ -24,9 +24,7 @@ test.describe('favorites', () => {
     await tiles.first().click();
     await page.waitForURL(/\/favorites\/itm/);
 
-    // Same scoped shape as content-details.spec.ts's own heading check —
-    // `.title` alone is reused all over this app (see radio.spec.ts).
-    await expect(page.locator('.banner__info__content h2.title')).not.toBeEmpty();
+    await expect(titleHeading(page)).not.toBeEmpty();
   });
 });
 
@@ -35,7 +33,7 @@ test.describe('navigation', () => {
     // Out of scope beyond this: the categories here are mostly paid channel
     // groups (see the plan) — this only confirms the dropdown itself is real
     // and populated, the same light check already done for Видеотека/Радио.
-    await page.locator('header .item.dropdown-icon', { hasText: 'Телевидение' }).hover();
+    await hoverNavDropdown(page, 'Телевидение');
 
     const categories = page.locator('a[href^="/tv/group/"]');
     await expect(categories.first()).toBeVisible();

@@ -1,4 +1,4 @@
-import { test, expect, openFirstTitleDetails } from './fixtures';
+import { test, expect, openFirstTitleDetails, titleHeading, WATCH_BUTTON_NAME } from './fixtures';
 
 /**
  * Coverage for the title details page (/home/itm) opened from a dashboard
@@ -13,7 +13,7 @@ test.describe('content details', () => {
     await openFirstTitleDetails(page);
 
     const info = page.locator('.banner__info__content');
-    await expect(info.locator('.title')).not.toBeEmpty();
+    await expect(titleHeading(page)).not.toBeEmpty();
     await expect(info.locator('.tags')).not.toBeEmpty();
     await expect(info.locator('.description')).not.toBeEmpty();
 
@@ -21,7 +21,7 @@ test.describe('content details', () => {
     // change per title) — just that the block itself renders.
     await expect(info.locator('.ratings')).toBeVisible();
 
-    await expect(page.getByRole('button', { name: /^(Смотреть|Продолжить)/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: WATCH_BUTTON_NAME })).toBeVisible();
   });
 
   test('description tab shows the cast', async ({ page }) => {

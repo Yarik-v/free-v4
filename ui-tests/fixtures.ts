@@ -1,6 +1,41 @@
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 /**
+ * Matches both "Смотреть" (watch) and "Продолжить: HH:MM" (continue watching,
+ * shown once the account has progress on a title) — the two valid states of
+ * the same button. Shared so the dashboard's readiness wait and every spec
+ * asserting on this button test the exact same label, not two copies that
+ * could silently drift apart if the UI copy ever changes.
+ */
+export const WATCH_BUTTON_NAME = /^(Смотреть|Продолжить)/;
+
+/**
+ * Hovers a top-nav dropdown item (Видеотека/Радио/Телевидение/...) and returns
+ * it. Scoped to `header .item.dropdown-icon` rather than a plain text locator:
+ * a hidden, unrelated popover elsewhere on the page can contain the exact same
+ * label text (confirmed live for "Радио", inside the "Телевидение" dropdown's
+ * own channel-category list) — a strict-mode violation without this scope. A
+ * plain substring `hasText`, not an anchored regex: a nav item's real
+ * textContent has surrounding spaces (confirmed live), which an exact/anchored
+ * match misses.
+ */
+export async function hoverNavDropdown(page: Page, label: string): Promise<void> {
+  await page.locator('header .item.dropdown-icon', { hasText: label }).hover();
+}
+
+/**
+ * The title-details page's own heading (movie or series, at /home/itm,
+ * /favorites/itm, or a station's /radio/{id} page — same banner component
+ * throughout). `.title` alone is far too generic to use directly — it's
+ * reused by nav category tabs and by every dropdown popover row, including
+ * hidden ones already in the DOM (confirmed live: 32 matches on one details
+ * page without this scope).
+ */
+export function titleHeading(page: Page): Locator {
+  return page.locator('.banner__info__content h2.title');
+}
+
+/**
  * Shared base for browser UI tests. A fresh, cookie-less visit to `/home` lands
  * on a login/landing page instead of the dashboard — there's no anonymous entry;
  * these tests run against a real (subscriber) session (see README "Browser UI
@@ -26,10 +61,7 @@ export const test = base.extend<{ dashboardHome: void }>({
         needsLogin,
         'No session yet — see README "Browser UI tests: session" to generate ui-tests/.auth/storageState.json.',
       );
-      await page
-        .getByRole('button', { name: /^(Смотреть|Продолжить)/ })
-        .first()
-        .waitFor();
+      await page.getByRole('button', { name: WATCH_BUTTON_NAME }).first().waitFor();
       await use();
     },
     { auto: true },
@@ -44,7 +76,7 @@ export const test = base.extend<{ dashboardHome: void }>({
  * (an auto fixture, so any test using `test` from this module already has it).
  */
 export async function openCatalog(page: Page, serviceName: string): Promise<void> {
-  await page.getByText('Видеотека', { exact: true }).hover();
+  await hoverNavDropdown(page, 'Видеотека');
   await page.getByRole('link', { name: serviceName, exact: true }).click();
   await page.waitForURL(/\/vod\//);
 }
@@ -90,15 +122,9 @@ export async function openFirstTitleDetails(page: Page): Promise<void> {
 /**
  * Opens the first station's page (/radio/{id}) via the "Радио" nav dropdown —
  * same real-link, real-click shape as `openCatalog`/`openFirstTitleDetails`.
- * Scoped to `header .item.dropdown-icon` (not a plain text locator): a
- * hidden, unrelated popover elsewhere on the page also contains the exact
- * text "Радио" (confirmed live — a strict-mode violation without this scope).
- * A plain substring `hasText`, not an anchored regex: the nav item's real
- * textContent is `" Радио "` with surrounding spaces (confirmed live), which
- * an exact/anchored match misses.
  */
 export async function openFirstRadioStation(page: Page): Promise<void> {
-  await page.locator('header .item.dropdown-icon', { hasText: 'Радио' }).hover();
+  await hoverNavDropdown(page, 'Радио');
   const link = page.locator('a[href^="/radio/"]').first();
   await link.waitFor();
   await link.click();
