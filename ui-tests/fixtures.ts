@@ -70,4 +70,21 @@ export async function firstContinueWatchingLink(page: Page): Promise<Locator | n
   }
 }
 
+/**
+ * Opens the first title's details page (/home/itm?itm=...&path=...) via an
+ * in-app click on a real card link. Confirmed live: row/grid cards below the
+ * hero slider are real `<a href="/home/itm?...">` links — unlike the hero
+ * slider's own slides, which route via plain buttons with no href (see
+ * dashboard.spec.ts) — the same "real anchor, not a plain button" shape as
+ * the catalog's continue-watching cards. The click needs to be a real,
+ * trusted event: a script-dispatched click on the same element is silently
+ * ignored by the SPA's router (confirmed live). Call after `dashboardHome`.
+ */
+export async function openFirstTitleDetails(page: Page): Promise<void> {
+  const link = page.locator('a[href^="/home/itm"]').first();
+  await link.waitFor();
+  await link.click();
+  await page.waitForURL(/\/home\/itm/);
+}
+
 export { expect };
