@@ -1,16 +1,19 @@
+import { KNOWN_ISSUE_ANNOTATION } from '../src/reporters/runSummary';
 import { test, expect, openCatalog, firstContinueWatchingLink } from './fixtures';
 
 /**
  * Coverage for opening playback from a "Продолжить просмотр" (continue watching)
- * card — the one reliably-clickable, real-link title entry point found so far
- * (dashboard/catalog grid cards are plain buttons with no href, lazy-loaded into
- * shimmer placeholders — see README). Confirmed live: clicking one of these can
- * legitimately answer "Контент не доступен" (content not available) instead of
- * playing — same shape as the Free API's `playFreeContent` 403 case — so both
- * outcomes are asserted on, neither is treated as a failure.
+ * card, which links straight to the player. Confirmed live, this ends one of
+ * three real ways: it plays; it answers "Контент не доступен" (content not
+ * available — same shape as the Free API's `playFreeContent` 403 case); or the
+ * player hits a fatal stream error and silently bounces back to the catalog
+ * with no message at all. Which one a run hits depends on live backend/CDN
+ * state, not on this test's code, so all three pass — the test catches a hang
+ * or a broken flow — but the silent one is recorded as a known issue so it
+ * still shows up in the report.
  */
 test.describe('player', () => {
-  test('a continue-watching title either plays or shows a clear unavailable message', async ({ page }) => {
+  test('a continue-watching title plays or ends in a known unavailable outcome', async ({ page }) => {
     await openCatalog(page, 'START');
 
     const link = await firstContinueWatchingLink(page);
@@ -29,15 +32,10 @@ test.describe('player', () => {
     const unavailable = page.getByText('Контент не доступен');
 
     // Confirmed via trace (fatal hls.js `manifestLoadError`, a 404 on the signed
-    // stream URL, in the console right before this happens): the player can also
-    // fail by silently navigating back to the catalog page — no toast, no
-    // message at all, a worse UX than the "Контент не доступен" case above. Once
-    // the URL has reached /watch/, leaving it again without the toast means this
-    // is what happened — tracked as its own outcome (not folded into
-    // 'unavailable-message') so this worse failure mode stays visible in the
-    // report instead of silently blending into the same passing result; both
-    // still count as "didn't hang" for the assertion below, since which one a
-    // real run hits depends on live backend/CDN state, not on this test's code.
+    // stream URL, in the console right before this happens): the silent outcome
+    // shows up as the URL reaching /watch/ and then leaving it again without the
+    // toast — hence `reachedPlayer`, since the current URL alone can't tell
+    // "bounced back" apart from "hasn't navigated yet".
     // `video.evaluate()` waits (with no timeout) for the element to attach, so
     // once we've bounced back and it's gone for good, an unguarded evaluate()
     // call would hang for the rest of the poll's budget instead of ever
@@ -47,27 +45,25 @@ test.describe('player', () => {
     // an element to read from.
     type Outcome = 'playing' | 'unavailable-message' | 'unavailable-silent' | 'pending';
     let reachedPlayer = false;
-    let lastOutcome: Outcome = 'pending';
+    const checkOutcome = async (): Promise<Outcome> => {
+      if (await unavailable.isVisible()) return 'unavailable-message';
+      if (!/\/watch\//.test(page.url())) return reachedPlayer ? 'unavailable-silent' : 'pending';
+      reachedPlayer = true;
+      if ((await video.count()) === 0) return 'pending';
+      const readyState = await video.evaluate((el: HTMLVideoElement) => el.readyState).catch(() => 0);
+      return readyState > 0 ? 'playing' : 'pending';
+    };
 
-    await expect
-      .poll(
-        async (): Promise<Outcome> => {
-          if (await unavailable.isVisible()) return (lastOutcome = 'unavailable-message');
-          if (!/\/watch\//.test(page.url())) return (lastOutcome = reachedPlayer ? 'unavailable-silent' : 'pending');
-          reachedPlayer = true;
-          if ((await video.count()) === 0) return (lastOutcome = 'pending');
-          const readyState = await video.evaluate((el: HTMLVideoElement) => el.readyState).catch(() => 0);
-          return (lastOutcome = readyState > 0 ? 'playing' : 'pending');
-        },
-        { timeout: 15_000 },
-      )
-      .not.toBe('pending');
+    // `as Outcome`, not `: Outcome`: TS would otherwise narrow this to 'pending'
+    // and, blind to the assignment inside the poll callback, reject the check below.
+    let outcome = 'pending' as Outcome;
+    await expect.poll(async () => (outcome = await checkOutcome()), { timeout: 15_000 }).not.toBe('pending');
 
-    if (lastOutcome === 'unavailable-silent') {
+    if (outcome === 'unavailable-silent') {
       test.info().annotations.push({
-        type: 'known-issue',
+        type: KNOWN_ISSUE_ANNOTATION,
         description:
-          'Player silently returned to the catalog with no message (fatal stream error) instead of showing "Контент не доступен" — see comment above.',
+          'Player silently returned to the catalog with no message (fatal hls.js manifestLoadError) instead of showing "Контент не доступен".',
       });
     }
   });

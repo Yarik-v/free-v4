@@ -1,4 +1,4 @@
-import { test, expect, hoverNavDropdown, openFirstRadioStation, titleHeading } from './fixtures';
+import { test, expect, hoverNavDropdown, openFirstRadioStation, radioStationLinks, titleHeading } from './fixtures';
 
 /**
  * Coverage for radio. There's no separate "station list" page as the plan
@@ -11,7 +11,7 @@ test.describe('radio', () => {
   test('nav dropdown lists real stations', async ({ page }) => {
     await hoverNavDropdown(page, 'Радио');
 
-    const stations = page.locator('a[href^="/radio/"]');
+    const stations = radioStationLinks(page);
     await expect(stations.first()).toBeVisible();
     expect(await stations.count()).toBeGreaterThan(0);
   });

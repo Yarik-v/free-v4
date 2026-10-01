@@ -87,7 +87,8 @@ a different host by setting `UI_BASE_URL`.
   - `player.spec.ts` — opening a "Продолжить просмотр" title either plays or shows a
     clear outcome: a "Контент не доступен" message, or (rarer, found via trace
     inspection) a fatal stream error that silently returns to the catalog with no
-    message at all.
+    message at all. That last one still passes but is recorded as a `known-issue`
+    annotation, which both local reporters list even on an all-green run.
   - `catalog.spec.ts` — `/vod/{service}` renders real titles for a few differently
     branded services (START, Wink, PREMIER).
   - `radio.spec.ts` — the "Радио" nav dropdown lists real stations; opening one plays
@@ -143,7 +144,7 @@ just adding the job back — no config changes needed.
 The `browser-ui` project is untested against CI for the same likely reason (not yet
 confirmed) — `playtest.kartina.tv` probably sits behind the same kind of edge protection
 as the API host. `.github/workflows/typecheck.yml` doesn't install a Chromium binary, so
-it couldn't run `browser-ui` even if it tried.
+it couldn't run `browser-ui` even if it tried — it does typecheck `ui-tests/` though.
 
 ## Notes on scope
 

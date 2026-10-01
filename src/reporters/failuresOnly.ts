@@ -5,7 +5,8 @@ import { collectRunSummary, lastAttemptErrors, lastAttemptStdout, lastAttemptTra
 /**
  * Minimal reporter for local runs: prints the run's start time and a pass/fail/skip
  * summary, then full detail ONLY for tests that actually failed — no per-passing-test
- * noise. Pairs with `./htmlReport.ts` (same failure data, rendered as a static page);
+ * noise, apart from one line per passing test that recorded a `known-issue`
+ * annotation. Pairs with `./htmlReport.ts` (same failure data, rendered as a static page);
  * neither replaces `use.trace` — a failed test's trace.zip is still written, and its
  * path is printed below so it stays inspectable via `playwright show-trace`.
  */
@@ -20,13 +21,26 @@ export default class FailuresOnlyReporter implements Reporter {
   }
 
   onEnd(_result: FullResult): void {
-    const { tests, passed, skipped, flaky, failures, durationSec } = collectRunSummary(this.rootSuite, this.startedAt);
+    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = collectRunSummary(
+      this.rootSuite,
+      this.startedAt,
+    );
 
     console.log(
       `${tests.length} tests — ${passed} passed, ${skipped} skipped, ${failures.length} failed` +
         (flaky > 0 ? `, ${flaky} flaky` : '') +
+        (knownIssues.length > 0 ? `, ${knownIssues.length} known issue(s)` : '') +
         ` (${durationSec}s)\n`,
     );
+
+    if (knownIssues.length > 0) {
+      console.log(`KNOWN ISSUES — passed, but hit a documented product problem (${knownIssues.length}):`);
+      for (const { test, description } of knownIssues) {
+        console.log(`  ⚠ ${test.titlePath().slice(1).join(' › ')}`);
+        if (description) console.log(`    ${description}`);
+      }
+      console.log('');
+    }
 
     if (failures.length === 0) {
       console.log('No failures.');

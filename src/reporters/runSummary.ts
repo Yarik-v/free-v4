@@ -1,12 +1,26 @@
 import { stripVTControlCharacters } from 'node:util';
 import type { Suite, TestCase } from '@playwright/test/reporter';
 
+/**
+ * Annotation type a test pushes onto `test.info().annotations` when it passes but
+ * observed a real, documented product problem it deliberately tolerates. Both
+ * reporters list these even on an all-green run, since they otherwise only show
+ * failures and the problem would be invisible.
+ */
+export const KNOWN_ISSUE_ANNOTATION = 'known-issue';
+
+export interface KnownIssue {
+  test: TestCase;
+  description: string;
+}
+
 export interface RunSummary {
   tests: TestCase[];
   passed: number;
   skipped: number;
   flaky: number;
   failures: TestCase[];
+  knownIssues: KnownIssue[];
   durationSec: string;
 }
 
@@ -23,6 +37,7 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
   let skipped = 0;
   let flaky = 0;
   const failures: TestCase[] = [];
+  const knownIssues: KnownIssue[] = [];
 
   for (const test of tests) {
     switch (test.outcome()) {
@@ -37,10 +52,14 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
         break;
       default:
         failures.push(test);
+        continue;
+    }
+    for (const { type, description } of test.annotations) {
+      if (type === KNOWN_ISSUE_ANNOTATION) knownIssues.push({ test, description: description ?? '' });
     }
   }
 
-  return { tests, passed, skipped, flaky, failures, durationSec };
+  return { tests, passed, skipped, flaky, failures, knownIssues, durationSec };
 }
 
 /** The last attempt's errors, message + code-frame snippet, ANSI stripped. Never truncated. */

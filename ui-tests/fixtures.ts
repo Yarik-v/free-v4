@@ -10,29 +10,43 @@ import { test as base, expect, type Locator, type Page } from '@playwright/test'
 export const WATCH_BUTTON_NAME = /^(Смотреть|Продолжить)/;
 
 /**
- * Hovers a top-nav dropdown item (Видеотека/Радио/Телевидение/...) and returns
- * it. Scoped to `header .item.dropdown-icon` rather than a plain text locator:
- * a hidden, unrelated popover elsewhere on the page can contain the exact same
+ * Hovers a top-nav dropdown item (Видеотека/Радио/Телевидение/...) to open it.
+ * Scoped to `header .item.dropdown-icon` rather than a plain text locator: a
+ * hidden, unrelated popover elsewhere on the page can contain the exact same
  * label text (confirmed live for "Радио", inside the "Телевидение" dropdown's
- * own channel-category list) — a strict-mode violation without this scope. A
- * plain substring `hasText`, not an anchored regex: a nav item's real
- * textContent has surrounding spaces (confirmed live), which an exact/anchored
- * match misses.
+ * own channel-category list) — a strict-mode violation without this scope.
+ * Matched exactly but whitespace-tolerant: a nav item's real textContent has
+ * surrounding spaces (confirmed live, `" Радио "`), which a bare `^label$`
+ * misses, while a plain substring match would also hit any future item whose
+ * label merely contains this one.
  */
 export async function hoverNavDropdown(page: Page, label: string): Promise<void> {
-  await page.locator('header .item.dropdown-icon', { hasText: label }).hover();
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await page.locator('header .item.dropdown-icon', { hasText: new RegExp(`^\\s*${escaped}\\s*$`) }).hover();
 }
 
 /**
- * The title-details page's own heading (movie or series, at /home/itm,
- * /favorites/itm, or a station's /radio/{id} page — same banner component
- * throughout). `.title` alone is far too generic to use directly — it's
- * reused by nav category tabs and by every dropdown popover row, including
+ * The title-details banner (movie or series at /home/itm, /favorites/itm, or a
+ * station's /radio/{id} page — same banner component throughout): heading,
+ * tags, description, ratings, buttons, back button.
+ */
+export function titleBanner(page: Page): Locator {
+  return page.locator('.banner__info__content');
+}
+
+/**
+ * The banner's own heading. `.title` alone is far too generic to use directly —
+ * it's reused by nav category tabs and by every dropdown popover row, including
  * hidden ones already in the DOM (confirmed live: 32 matches on one details
- * page without this scope).
+ * page without the banner scope).
  */
 export function titleHeading(page: Page): Locator {
-  return page.locator('.banner__info__content h2.title');
+  return titleBanner(page).locator('.title');
+}
+
+/** Every radio station link — the "Радио" nav dropdown's entries and the station page's own list. */
+export function radioStationLinks(page: Page): Locator {
+  return page.locator('a[href^="/radio/"]');
 }
 
 /**
@@ -83,9 +97,9 @@ export async function openCatalog(page: Page, serviceName: string): Promise<void
 
 /**
  * The first "Продолжить просмотр" card on the current catalog page, if the
- * account has any — these are real `<a href="/watch/{service}/...">` links,
- * unlike the dashboard's own title cards (plain buttons, no href). `null` when
- * there's nothing in progress for this service right now.
+ * account has any — real `<a href="/watch/{service}/...">` links, going
+ * straight to the player rather than to a details page. `null` when there's
+ * nothing in progress for this service right now.
  *
  * Waits (briefly) rather than checking `.count()` immediately: like the
  * dashboard, the catalog page's URL/shell updates before this section's own
@@ -125,7 +139,7 @@ export async function openFirstTitleDetails(page: Page): Promise<void> {
  */
 export async function openFirstRadioStation(page: Page): Promise<void> {
   await hoverNavDropdown(page, 'Радио');
-  const link = page.locator('a[href^="/radio/"]').first();
+  const link = radioStationLinks(page).first();
   await link.waitFor();
   await link.click();
   await page.waitForURL(/\/radio\//);

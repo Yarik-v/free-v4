@@ -16,7 +16,8 @@ function escapeHtml(text: string): string {
  * re-running) is for. A big red/green status banner with the run time, then one
  * card per FAILED test with its full error, code-frame snippet, captured stdout
  * and trace path. Passing tests are only a number in the banner — unlike
- * Playwright's own `html` reporter, this never lists a test that didn't fail.
+ * Playwright's own `html` reporter, this never lists a test that didn't fail,
+ * except one that recorded a `known-issue` annotation (see runSummary.ts).
  */
 export default class HtmlReporter implements Reporter {
   private startedAt = new Date();
@@ -28,7 +29,24 @@ export default class HtmlReporter implements Reporter {
   }
 
   onEnd(_result: FullResult): void {
-    const { tests, passed, skipped, flaky, failures, durationSec } = collectRunSummary(this.rootSuite, this.startedAt);
+    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = collectRunSummary(
+      this.rootSuite,
+      this.startedAt,
+    );
+
+    const knownIssueCards = knownIssues
+      .map(
+        ({ test, description }) => `
+    <div class="card card-known">
+      <div class="card-title">⚠ ${escapeHtml(test.titlePath().slice(1).join(' › '))}</div>
+      <div class="card-loc">${escapeHtml(test.location.file)}:${test.location.line}</div>
+      ${description ? `<p>${escapeHtml(description)}</p>` : ''}
+    </div>`,
+      )
+      .join('\n');
+    const knownIssuesHtml = knownIssues.length
+      ? `<h2 class="section-title">Known issues — passed, but hit a documented product problem</h2>${knownIssueCards}`
+      : '';
 
     const ok = failures.length === 0;
     const statusColor = ok ? '#1e7e34' : '#b02a2a';
@@ -81,7 +99,10 @@ export default class HtmlReporter implements Reporter {
   .stat-skip .stat-num { color: #8a6d00; }
   .stat-flaky .stat-num { color: #b06a00; }
   .stat-fail .stat-num { color: #b02a2a; }
+  .stat-known .stat-num { color: #b06a00; }
   .card { background: white; border-left: 4px solid ${statusColor}; border-radius: 6px; padding: 14px 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .card-known { border-left-color: #b06a00; }
+  .section-title { font-size: 1.05em; margin: 24px 0 12px; color: #b06a00; }
   .card-title { font-weight: 600; margin-bottom: 4px; }
   .card-loc { color: #666; font-size: 0.85em; margin-bottom: 8px; font-family: monospace; }
   .section-label { color: #666; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
@@ -102,8 +123,10 @@ export default class HtmlReporter implements Reporter {
     <div class="stat stat-skip"><div class="stat-num">${skipped}</div><div class="stat-label">skipped</div></div>
     ${flaky > 0 ? `<div class="stat stat-flaky"><div class="stat-num">${flaky}</div><div class="stat-label">flaky</div></div>` : ''}
     <div class="stat stat-fail"><div class="stat-num">${failures.length}</div><div class="stat-label">failed</div></div>
+    ${knownIssues.length > 0 ? `<div class="stat stat-known"><div class="stat-num">${knownIssues.length}</div><div class="stat-label">known issues</div></div>` : ''}
   </div>
   ${ok ? '<p class="empty">No failures. ✅</p>' : cards}
+  ${knownIssuesHtml}
 </body>
 </html>
 `;

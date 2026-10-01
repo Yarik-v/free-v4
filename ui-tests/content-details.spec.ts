@@ -1,4 +1,4 @@
-import { test, expect, openFirstTitleDetails, titleHeading, WATCH_BUTTON_NAME } from './fixtures';
+import { test, expect, openFirstTitleDetails, titleBanner, titleHeading, WATCH_BUTTON_NAME } from './fixtures';
 
 /**
  * Coverage for the title details page (/home/itm) opened from a dashboard
@@ -12,7 +12,7 @@ test.describe('content details', () => {
   test('shows title, genres/year, description and ratings', async ({ page }) => {
     await openFirstTitleDetails(page);
 
-    const info = page.locator('.banner__info__content');
+    const info = titleBanner(page);
     await expect(titleHeading(page)).not.toBeEmpty();
     await expect(info.locator('.tags')).not.toBeEmpty();
     await expect(info.locator('.description')).not.toBeEmpty();
@@ -50,7 +50,7 @@ test.describe('content details', () => {
 
     // A plain, unlabelled div (`.btn--back`, confirmed live) — not a link or
     // an accessible button, so it's targeted by class rather than role/name.
-    await page.locator('.banner__info__content .btn--back').click();
+    await titleBanner(page).locator('.btn--back').click();
     await page.waitForURL('/home');
   });
 });
