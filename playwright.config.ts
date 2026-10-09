@@ -15,10 +15,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // The account's IP allows at most 5 concurrent devices/connections, total,
-  // across everything running against it — not just the 900 req/min rate limit.
-  // This is the ceiling for the whole run (both projects combined, browser-ui's
-  // own workers included below), not a per-project budget.
+  // At most 5 devices at once from one IP, total, across everything running
+  // against it (a separate limit from the 900 req/min rate limit). A worker is
+  // one device here: this is the ceiling for the whole run, both projects
+  // combined, browser-ui's own workers included below, not a per-project
+  // budget. It caps workers, not HTTP requests: concurrent requests within one
+  // worker (e.g. the dashboardBlocks fan-out) are still a single device.
   workers: process.env.CI ? 4 : 5,
   reporter: process.env.CI
     ? [['github'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]]

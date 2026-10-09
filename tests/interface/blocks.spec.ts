@@ -113,6 +113,7 @@ test.describe('GET /pages/{slug}/blocks/{id}', () => {
 test.describe('GET /pages/radio/channel-group', () => {
   test('matches the radio page layout block_url', async ({ api, radioGroupBlock }) => {
     const pageRes = await api.getRadioPage();
+    expect(pageRes.status()).toBe(200);
     const page = await pageRes.json();
 
     expect(radioGroupBlock.body.id).toBe(page.items[0].id);

@@ -82,3 +82,28 @@ export function lastAttemptTracePath(test: TestCase): string | undefined {
   const lastResult = test.results[test.results.length - 1];
   return lastResult?.attachments.find((a) => a.name === 'trace')?.path;
 }
+
+/**
+ * Whether the test's project runs with a saved login (`use.storageState`). Its
+ * traces then record that session's cookies in the network log (confirmed:
+ * hundreds of cookie entries in a single browser-ui trace). Playwright can't leave
+ * the network log out of a trace, so reporters warn next to the trace path instead.
+ */
+export function traceHasSessionCookies(test: TestCase): boolean {
+  return Boolean(test.parent.project()?.use.storageState);
+}
+
+/**
+ * "free-api: free-dashboard.kartina.tv · browser-ui: playtest.kartina.tv": one
+ * entry per project that actually has tests in this run, from its own `baseURL`.
+ */
+export function describeTargets(rootSuite: Suite): string {
+  return rootSuite.suites
+    .filter((projectSuite) => projectSuite.allTests().length > 0)
+    .map((projectSuite) => {
+      const project = projectSuite.project();
+      const baseURL = project?.use.baseURL;
+      return `${project?.name}: ${baseURL ? new URL(baseURL).host : 'no baseURL'}`;
+    })
+    .join(' · ');
+}

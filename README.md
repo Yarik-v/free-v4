@@ -55,9 +55,11 @@ a different host by setting `UI_BASE_URL`.
   status codes and headers for both success and documented error cases.
 - `src/api/types.ts` — response TypeScript types mirroring the schemas.
 - `tests/fixtures.ts` — extends Playwright's `test` with an `api` client and worker-scoped
-  fixtures (`dashboardPage`, `servicesList`, `settingsBody`, `radioGroupBlock`,
-  `sampleContent`, `sampleContentDetails`, `freeRadioChannel`) that fetch real,
-  currently-live data once per worker and share it across every test that needs it —
+  fixtures (`dashboardPage`, `dashboardBlocks`, `servicesList`, `settingsBody`,
+  `radioGroupBlock`, `sampleContent`, `sampleContentDetails`, `freeRadioChannel`) that
+  fetch real, currently-live data once per worker and share it across every test that
+  needs it. Use `dashboardBlocks` with the `findCard`/`findBlockOfType` helpers to
+  discover a card or block, rather than fetching blocks again —
   since the catalogue is dashboard-driven and its ids aren't stable across environments,
   and re-fetching static/shared data per test would waste requests against the shared
   rate limit. Tests that depend on discovered data `test.skip()` themselves when nothing
@@ -120,6 +122,12 @@ npx playwright codegen --save-storage=ui-tests/.auth/storageState.json "$UI_BASE
 Log in in the window that opens, then close it — `playwright.config.ts` picks up
 `ui-tests/.auth/storageState.json` automatically if it exists. Without it, every
 `browser-ui` test `test.skip()`s itself with a clear reason instead of timing out.
+
+**Don't share `browser-ui` traces.** A failed test keeps its `trace.zip`, and for this
+project the trace's network log records the logged-in session's cookies (Playwright
+can't leave the network log out of a trace). Attaching one to a bug report hands over
+the session. Both reporters flag these traces next to the path; for a bug report, use
+screenshots from the trace or describe the steps instead.
 
 ## CI
 

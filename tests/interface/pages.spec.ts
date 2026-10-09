@@ -1,13 +1,14 @@
 import { test, expect } from '../fixtures';
 import { expectCacheControlHeader, expectCorsHeader, expectRateLimitHeaders, expectValidSchema } from '../../src/api/assertions';
+import { fixturePageSlug } from '../../src/config';
 import type { Page } from '../../src/api/types';
 
 test.describe('GET /pages/{slug}', () => {
-  test('dashboard page matches the page schema and every block links to a valid block_url', async ({
+  test('the fixture page matches the page schema and every block links to a valid block_url', async ({
     dashboardPage,
   }) => {
     expectValidSchema('page', dashboardPage);
-    expect(dashboardPage.slug).toBe('dashboard');
+    expect(dashboardPage.slug).toBe(fixturePageSlug);
 
     for (const summary of dashboardPage.items) {
       expect(summary.block_url).toBe(`/free/v4/pages/${dashboardPage.slug}/blocks/${summary.id}`);
@@ -15,7 +16,7 @@ test.describe('GET /pages/{slug}', () => {
   });
 
   test('returns the documented rate-limit, cache-control and CORS headers', async ({ api }) => {
-    const res = await api.getPage('dashboard');
+    const res = await api.getPage(fixturePageSlug);
     expect(res.status()).toBe(200);
     expectRateLimitHeaders(res);
     expectCacheControlHeader(res);

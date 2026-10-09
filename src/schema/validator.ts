@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Ajv, { type ValidateFunction } from 'ajv';
+import type { ValidateFunction } from 'ajv';
+import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { load } from 'js-yaml';
 
@@ -10,10 +11,12 @@ const SCHEMA_ROOT_ID = 'openapi.yaml';
 
 const openApiDocument = load(readFileSync(SPEC_PATH, 'utf8')) as Record<string, unknown>;
 
-// The spec uses OpenAPI-only annotation keywords (`example`, etc.) that plain JSON
-// Schema doesn't know about, so strict mode is off; every schema under test is still
-// checked for real structural violations (required/type/enum/additionalProperties/...).
-const ajv = new Ajv({ strict: false, allErrors: true });
+// OpenAPI 3.1+ schemas default to the JSON Schema 2020-12 dialect, hence Ajv2020:
+// the default (draft-07) Ajv would, with strict mode off, silently ignore any
+// 2020-12-only keyword (`unevaluatedProperties`, `prefixItems`, ...) that a future
+// `npm run spec:refresh` pulls in. Strict mode stays off for OpenAPI-only annotation
+// keywords (`example`, etc.) that plain JSON Schema doesn't know about.
+const ajv = new Ajv2020({ strict: false, allErrors: true });
 addFormats(ajv);
 ajv.addSchema(openApiDocument, SCHEMA_ROOT_ID);
 

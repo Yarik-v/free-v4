@@ -3,6 +3,7 @@ import { expectCacheControlHeader, expectCorsHeader, expectRateLimitHeaders, exp
 import type { ContentDetails } from '../../src/api/types';
 
 const NO_SAMPLE_CONTENT = 'No title with a live details_url found on the dashboard right now.';
+const NOT_AVAILABLE = 'Discovered title is not currently available.';
 const findPremiereMovie = (dashboardBlocks: Parameters<typeof findCard>[0]) =>
   findCard(dashboardBlocks, (card) => card.service === 'premierone' && card.kind === 'movie');
 
@@ -12,6 +13,10 @@ test.describe('GET /content/{service}/{id}', () => {
     const { service, id, card } = sampleContent!;
     const { res, body } = sampleContentDetails!;
 
+    // 403/404 are documented, legitimate answers for a discovered title (it went
+    // non-free or was removed after discovery) and every sibling test skips on
+    // them. Anything else (e.g. a 5xx) still fails here.
+    test.skip([403, 404].includes(res.status()), NOT_AVAILABLE);
     expect(res.status()).toBe(200);
     expectRateLimitHeaders(res);
     expectCacheControlHeader(res);
@@ -28,7 +33,7 @@ test.describe('GET /content/{service}/{id}', () => {
     sampleContentDetails,
   }) => {
     test.skip(!sampleContent, NO_SAMPLE_CONTENT);
-    test.skip(sampleContentDetails!.res.status() !== 200, 'Discovered title is not currently available.');
+    test.skip(sampleContentDetails!.res.status() !== 200, NOT_AVAILABLE);
     const { body } = sampleContentDetails!;
 
     expect(body.favorite).toBe(false);
@@ -43,7 +48,7 @@ test.describe('GET /content/{service}/{id}', () => {
   }) => {
     test.skip(!sampleContent, NO_SAMPLE_CONTENT);
     test.skip(sampleContent!.card.kind !== 'series', 'Discovered sample title is a movie, not a series.');
-    test.skip(sampleContentDetails!.res.status() !== 200, 'Discovered title is not currently available.');
+    test.skip(sampleContentDetails!.res.status() !== 200, NOT_AVAILABLE);
     const { body } = sampleContentDetails!;
 
     expect(body.seasons.length).toBeGreaterThan(0);
@@ -80,6 +85,8 @@ test.describe('GET /content/{service}/{id}', () => {
     test.skip(!premiereMovie, 'No premierone movie on the dashboard right now.');
 
     const res = await api.getContentDetails('premierone', premiereMovie!.id);
+    test.skip([403, 404].includes(res.status()), 'This premierone movie is not currently available.');
+    expect(res.status()).toBe(200);
     const body: ContentDetails = await res.json();
     const hasEpisodes = body.seasons.some((season) => season.episodes.length > 0);
     test.skip(!hasEpisodes, 'This premierone movie currently has no episodes attached; bug not reproducible right now.');
@@ -95,7 +102,7 @@ test.describe('GET /content/{service}/free/{id}/play', () => {
     sampleContentDetails,
   }) => {
     test.skip(!sampleContent, NO_SAMPLE_CONTENT);
-    test.skip(sampleContentDetails!.res.status() !== 200, 'Discovered title is not currently available.');
+    test.skip(sampleContentDetails!.res.status() !== 200, NOT_AVAILABLE);
     const { service, id } = sampleContent!;
     const { body: details } = sampleContentDetails!;
 
@@ -132,12 +139,13 @@ test.describe('GET /content/{service}/free/{id}/play', () => {
 
   test('the stream URL is signed fresh on every call', async ({ api, sampleContent, sampleContentDetails }) => {
     test.skip(!sampleContent, NO_SAMPLE_CONTENT);
-    test.skip(sampleContentDetails!.res.status() !== 200, 'Discovered title is not currently available.');
+    test.skip(sampleContentDetails!.res.status() !== 200, NOT_AVAILABLE);
     const { service, id } = sampleContent!;
     test.skip(!sampleContentDetails!.body.play_url, 'Discovered title has no play_url.');
 
     const [first, second] = await Promise.all([api.playFreeContent(service, id), api.playFreeContent(service, id)]);
     test.skip(first.status() !== 200, 'Discovered title is not currently free.');
+    expect(second.status()).toBe(200);
 
     const [firstBody, secondBody] = await Promise.all([first.json(), second.json()]);
     expect(secondBody.url).not.toBe(firstBody.url);

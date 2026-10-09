@@ -1,7 +1,13 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import type { FullConfig, FullResult, Reporter, Suite } from '@playwright/test/reporter';
-import { host } from '../config';
-import { collectRunSummary, lastAttemptErrors, lastAttemptStdout, lastAttemptTracePath } from './runSummary';
+import {
+  collectRunSummary,
+  describeTargets,
+  lastAttemptErrors,
+  lastAttemptStdout,
+  lastAttemptTracePath,
+  traceHasSessionCookies,
+} from './runSummary';
 
 const OUT_PATH = 'test-results/latest.html';
 
@@ -65,8 +71,11 @@ export default class HtmlReporter implements Reporter {
           : '';
 
         const tracePath = lastAttemptTracePath(test);
+        const traceWarning = traceHasSessionCookies(test)
+          ? `<div class="trace-warning">⚠ This trace records the logged-in session's cookies — don't share or attach it.</div>`
+          : '';
         const traceHtml = tracePath
-          ? `<div class="trace">Trace: <code>npx playwright show-trace ${escapeHtml(tracePath)}</code></div>`
+          ? `<div class="trace">Trace: <code>npx playwright show-trace ${escapeHtml(tracePath)}</code>${traceWarning}</div>`
           : '';
 
         return `
@@ -108,6 +117,7 @@ export default class HtmlReporter implements Reporter {
   .section-label { color: #666; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
   .trace { margin-top: 10px; font-size: 0.85em; color: #444; }
   .trace code { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 2px 6px; }
+  .trace-warning { margin-top: 6px; color: #b06a00; font-weight: 600; }
   pre { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 10px; overflow-x: auto; font-size: 0.85em; white-space: pre-wrap; margin: 8px 0; }
   .empty { color: #1e7e34; font-weight: 600; }
 </style>
@@ -115,7 +125,7 @@ export default class HtmlReporter implements Reporter {
 <body>
   <div class="banner">
     <h1>${statusText}</h1>
-    <div class="meta">${startedLabel} · host: ${host} · ${durationSec}s</div>
+    <div class="meta">${startedLabel} · ${escapeHtml(describeTargets(this.rootSuite))} · ${durationSec}s</div>
   </div>
   <div class="stats">
     <div class="stat stat-total"><div class="stat-num">${tests.length}</div><div class="stat-label">tests</div></div>

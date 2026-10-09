@@ -1,6 +1,12 @@
 import type { FullConfig, FullResult, Reporter, Suite } from '@playwright/test/reporter';
-import { host } from '../config';
-import { collectRunSummary, lastAttemptErrors, lastAttemptStdout, lastAttemptTracePath } from './runSummary';
+import {
+  collectRunSummary,
+  describeTargets,
+  lastAttemptErrors,
+  lastAttemptStdout,
+  lastAttemptTracePath,
+  traceHasSessionCookies,
+} from './runSummary';
 
 /**
  * Minimal reporter for local runs: prints the run's start time and a pass/fail/skip
@@ -17,7 +23,7 @@ export default class FailuresOnlyReporter implements Reporter {
   onBegin(_config: FullConfig, suite: Suite): void {
     this.startedAt = new Date();
     this.rootSuite = suite;
-    console.log(`\nRun started: ${this.startedAt.toLocaleString()} (host: ${host})`);
+    console.log(`\nRun started: ${this.startedAt.toLocaleString()} (${describeTargets(suite)})`);
   }
 
   onEnd(_result: FullResult): void {
@@ -71,7 +77,12 @@ export default class FailuresOnlyReporter implements Reporter {
       }
 
       const tracePath = lastAttemptTracePath(test);
-      if (tracePath) console.log(`\n  Trace: npx playwright show-trace ${tracePath}`);
+      if (tracePath) {
+        console.log(`\n  Trace: npx playwright show-trace ${tracePath}`);
+        if (traceHasSessionCookies(test)) {
+          console.log(`  ⚠ This trace records the logged-in session's cookies — don't share or attach it.`);
+        }
+      }
     }
     console.log(`${'='.repeat(80)}\n`);
   }

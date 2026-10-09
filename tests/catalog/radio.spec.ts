@@ -67,6 +67,7 @@ test.describe('GET /channels/{channel}/play', () => {
       api.playRadioChannel(freeRadioChannel!.id),
     ]);
     test.skip(first.status() !== 200, 'Station is no longer free.');
+    expect(second.status()).toBe(200);
 
     const [firstBody, secondBody] = await Promise.all([first.json(), second.json()]);
     expect(secondBody.url).not.toBe(firstBody.url);

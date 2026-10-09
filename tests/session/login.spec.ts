@@ -111,6 +111,8 @@ test.describe('POST /login', () => {
       api.login({ device: 'playwright-suite-a', serial: `pw-a-${Date.now()}` }),
       api.login({ device: 'playwright-suite-b', serial: `pw-b-${Date.now()}` }),
     ]);
+    expect(first.status()).toBe(200);
+    expect(second.status()).toBe(200);
     const [firstJson, secondJson]: LoginResponse[] = await Promise.all([first.json(), second.json()]);
     expect(secondJson.security).not.toBe(firstJson.security);
   });

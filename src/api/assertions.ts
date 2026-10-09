@@ -23,7 +23,7 @@ export function expectJsonContentType(res: APIResponse): void {
 
 /**
  * Every cached response (pages, blocks, services, cards, stream targets, per the docs'
- * "Caching" section) is served with a fixed no-store directive and no ETag.
+ * "Caching" section) is served with `Cache-Control: no-cache, private` and no ETag.
  */
 export function expectCacheControlHeader(res: APIResponse): void {
   expect(res.headers()['cache-control']).toBe('no-cache, private');

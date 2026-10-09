@@ -1,6 +1,6 @@
 import { test as base, expect, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { FreeApiClient } from '../src/api/client';
-import { baseURL, fixturePageSlug } from '../src/config';
+import { fixturePageSlug } from '../src/config';
 import type {
   Block,
   ContentCard,
@@ -78,7 +78,9 @@ interface WorkerFixtures {
    * disappear between discovery and this fetch (the same race `playFreeContent`
    * tests already tolerate), so a 403/404 here is expected, not an outage. `body`
    * is only meaningfully `ContentDetails`-shaped when `res.status() === 200` —
-   * every consumer must check that before reading fields off it.
+   * every consumer must check that before reading fields off it. It's `null` when
+   * the response isn't JSON at all (e.g. an edge/CDN HTML error page), so that
+   * case can't take down every dependent test in the worker.
    */
   sampleContentDetails: Cached<ContentDetails> | null;
   /** A station with a play_url from `radioGroupBlock`, or null if none is free right now. */
@@ -91,11 +93,12 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
   },
 
   workerRequest: [
-    async ({ playwright }, use) => {
-      const context = await playwright.request.newContext({
-        baseURL,
-        extraHTTPHeaders: { Accept: 'application/json' },
-      });
+    async ({ playwright }, use, workerInfo) => {
+      // Same request config as the project's `use` (what the test-scoped `request`
+      // fixture gets), read from the project instead of repeated here, so the
+      // worker-scoped fixtures and `api` can never drift apart.
+      const { baseURL, extraHTTPHeaders } = workerInfo.project.use;
+      const context = await playwright.request.newContext({ baseURL, extraHTTPHeaders });
       await use(context);
       await context.dispose();
     },
@@ -191,7 +194,7 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
         return;
       }
       const res = await workerApi.getContentDetails(sampleContent.service, sampleContent.id);
-      await use({ res, body: await res.json() });
+      await use({ res, body: await res.json().catch(() => null) });
     },
     { scope: 'worker' },
   ],
