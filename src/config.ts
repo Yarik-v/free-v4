@@ -20,5 +20,15 @@ export const fixturePageSlug = process.env.FIXTURE_PAGE_SLUG ?? 'dashboard';
  * Base URL of the web client the Free API backs, for browser UI tests. `playtest`
  * (not `play`) is the deliberate default — same naming pattern as
  * `free-dashboard-dev.kartina.tv` for the API: `playtest` is the test/staging host.
+ * Must be a full URL: a bare host would only fail later, deep inside a reporter
+ * or a `page.goto()`.
  */
-export const uiBaseUrl = process.env.UI_BASE_URL ?? 'https://playtest.kartina.tv';
+function resolveUiBaseUrl(): string {
+  const raw = process.env.UI_BASE_URL ?? 'https://playtest.kartina.tv';
+  if (!/^https?:\/\/[^/]/.test(raw)) {
+    throw new Error(`UI_BASE_URL must be a full URL such as https://playtest.kartina.tv, got "${raw}"`);
+  }
+  return raw;
+}
+
+export const uiBaseUrl = resolveUiBaseUrl();
