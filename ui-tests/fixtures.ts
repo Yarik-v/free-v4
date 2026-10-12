@@ -66,6 +66,15 @@ export function radioStationLinks(page: Page): Locator {
 export const test = base.extend<{ dashboardHome: void }>({
   dashboardHome: [
     async ({ page }, use) => {
+      // A consentmanager.net cookie banner slides up over the bottom ~260px of
+      // the page right after load and intercepts every click there (tabs, the
+      // radio play button). Whenever it's visible before an action, this
+      // dismisses it with "Отклонить все" (reject all), however late it appears.
+      // `.cmpboxbtnno` is the CMP's own class for that button, independent of the
+      // banner's language.
+      await page.addLocatorHandler(page.locator('#cmpbox'), async (banner) => {
+        await banner.locator('.cmpboxbtnno').click();
+      });
       await page.goto('/home');
       const needsLogin = await page
         .getByPlaceholder('Номер абонемента')
