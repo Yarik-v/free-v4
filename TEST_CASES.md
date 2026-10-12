@@ -119,7 +119,7 @@ gaps" below for the breakdown and what each one would take.
 |----|-------|------|-------|------------------|-----------|
 | GEN-01 | Rate-limit headers on every response | P1 | Any request | `X-RateLimit-Limit` and `X-RateLimit-Remaining` present, numeric, limit > 0 | Spot-checked on the primary test of every endpoint |
 | GEN-02 | Cache-Control / no ETag | P2 | Any cached-response endpoint (pages, blocks, services, content, radio) | `Cache-Control: no-cache, private`; no `ETag` | Spot-checked on the primary test of every endpoint |
-| GEN-03 | CORS header present | P2 | Any request with an `Origin` header | `Access-Control-Allow-Origin` present | Spot-checked on the primary test of every endpoint |
+| GEN-03 | CORS header present | P2 | Any request (no `Origin` header sent) | `Access-Control-Allow-Origin` present | Spot-checked on the primary test of every endpoint. The cross-origin variant (a request carrying `Origin`) isn't sent |
 | GEN-04 | Error body shape | P1 | Any documented error case | `{message: string}` (or `{message, errors}` for 422) in the server's locale | Covered per-endpoint wherever a 4xx/5xx is tested |
 | GEN-05 | No authentication anywhere | P1 | Any endpoint, no cookies/tokens sent | Succeeds or fails per its own documented logic, never a 401 | Implicit — no test ever sends credentials |
 | GEN-06 | 429 on exceeding the rate limit | P2 | Burst >900 req/min from one IP | 429; `error` schema; `Retry-After` + `X-RateLimit-Reset` present | — (deliberately excluded, see README) |

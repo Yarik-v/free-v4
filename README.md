@@ -41,7 +41,8 @@ from a full `npm test` run, re-run just that project
 Point the API project at a different environment by setting `API_HOST` in `.env`
 (`free-dashboard.kartina.tv`, `free-dashboard-dev.kartina.tv`, or `localhost` — the values
 allowed by the `host` server variable in `spec/openapi.yaml`). Point the browser project at
-a different host by setting `UI_BASE_URL`.
+a different site by setting `UI_BASE_URL` to its full URL (e.g. `https://playtest.kartina.tv`,
+not just the host name).
 
 ## How it's organized
 
@@ -122,6 +123,12 @@ npx playwright codegen --save-storage=ui-tests/.auth/storageState.json "$UI_BASE
 Log in in the window that opens, then close it — `playwright.config.ts` picks up
 `ui-tests/.auth/storageState.json` automatically if it exists. Without it, every
 `browser-ui` test `test.skip()`s itself with a clear reason instead of timing out.
+
+While you're in that window, also answer the cookie banner ("Мы ценим вашу
+приватность!") with **Отклонить все** before closing it, so the choice is saved
+into `storageState.json`. Otherwise the banner comes back in every test.
+`ui-tests/fixtures.ts` still dismisses it automatically, but then each test pays
+for an extra round-trip.
 
 **Don't share `browser-ui` traces.** A failed test keeps its `trace.zip`, and for this
 project the trace's network log records the logged-in session's cookies (Playwright
