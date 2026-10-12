@@ -94,11 +94,20 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
 
   workerRequest: [
     async ({ playwright }, use, workerInfo) => {
-      // Same request config as the project's `use` (what the test-scoped `request`
-      // fixture gets), read from the project instead of repeated here, so the
-      // worker-scoped fixtures and `api` can never drift apart.
-      const { baseURL, extraHTTPHeaders } = workerInfo.project.use;
-      const context = await playwright.request.newContext({ baseURL, extraHTTPHeaders });
+      // Every request-level option the project's `use` can set, so worker-scoped
+      // fixtures send exactly what the test-scoped `request` fixture does (e.g.
+      // `ignoreHTTPSErrors` for a self-signed `API_HOST=localhost`).
+      const { baseURL, extraHTTPHeaders, httpCredentials, ignoreHTTPSErrors, proxy, userAgent, clientCertificates } =
+        workerInfo.project.use;
+      const context = await playwright.request.newContext({
+        baseURL,
+        extraHTTPHeaders,
+        httpCredentials,
+        ignoreHTTPSErrors,
+        proxy,
+        userAgent,
+        clientCertificates,
+      });
       await use(context);
       await context.dispose();
     },
