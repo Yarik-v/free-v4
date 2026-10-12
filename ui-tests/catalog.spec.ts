@@ -7,17 +7,20 @@ import { test, expect, openCatalog } from './fixtures';
  * grid itself renders real titles for more than just START (already covered
  * indirectly by player.spec.ts), without turning this into a slow full sweep.
  */
-const SERVICES = ['START', 'Wink', 'PREMIER'];
+const SERVICES = [
+  { name: 'START', id: 'startru' },
+  { name: 'Wink', id: 'moretv' },
+  { name: 'PREMIER', id: 'premierone' },
+] as const;
 
-for (const serviceName of SERVICES) {
-  test(`${serviceName} catalog shows real titles`, async ({ page }) => {
-    await openCatalog(page, serviceName);
+for (const service of SERVICES) {
+  test(`${service.name} catalog shows real titles`, async ({ page }) => {
+    await openCatalog(page, service.id);
 
-    // Card links carry each service's own id (e.g. /vod/startru/title/movie/...,
-    // /vod/moretv/title/...) — matched by the shared /title/ segment rather
-    // than a specific service id, so this doesn't duplicate SERVICE_IDS from
-    // src/api/types.ts just to re-derive what openCatalog already navigated to.
-    const cards = page.locator('a.video-item__link[href*="/title/"]');
+    // Card links carry the service's own id (/vod/startru/title/movie/...,
+    // /vod/moretv/title/...), so this also proves the grid shows *this*
+    // service's titles, not just any catalog.
+    const cards = page.locator(`a.video-item__link[href^="/vod/${service.id}/title/"]`);
     await expect(cards.first()).toBeVisible();
     expect(await cards.count()).toBeGreaterThan(0);
   });

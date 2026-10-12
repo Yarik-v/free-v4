@@ -14,6 +14,15 @@ test.describe('favorites', () => {
     await page.getByRole('link', { name: 'Избранное' }).first().click();
     await page.waitForURL('/favorites');
 
+    // Real account state: skip rather than fail if it has no video favorites
+    // right now. Once the "Видеотеки" section is there, its tiles must render.
+    const videoFavorites = page.locator('.block-title', { hasText: /^\s*Видеотеки\s*$/ });
+    const hasVideoFavorites = await videoFavorites.waitFor({ timeout: 10_000 }).then(
+      () => true,
+      () => false,
+    );
+    test.skip(!hasVideoFavorites, 'This account has no video favorites right now.');
+
     // Grouped by service ("Видеотеки" section); tiles are plain divs, not
     // real anchors — same "no href" shape as the dashboard's own hero slider
     // (confirmed live) — so this needs a real click rather than an href.

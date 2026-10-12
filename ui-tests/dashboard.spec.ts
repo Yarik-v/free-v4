@@ -35,9 +35,13 @@ test.describe('/home — dashboard', () => {
   });
 
   test('renders horizontal title blocks below the slider', async ({ page }) => {
-    // Each block has its own heading (e.g. "Телехиты: лучшая десятка недели!");
-    // a healthy dashboard has several beyond the slider's own card titles.
-    const headings = page.getByRole('heading');
-    expect(await headings.count()).toBeGreaterThan(5);
+    // Block titles (e.g. "Телехиты: лучшая десятка недели!") are plain
+    // `div.block-title`, not headings: every heading on the page is one of the
+    // hero slider's own ~20 slide titles, so counting headings proves nothing
+    // about the blocks. Asserts a real block plus a real title card instead.
+    // Only the first few blocks render on load (the rest lazy-load on scroll),
+    // so this checks presence rather than a count.
+    await expect(page.locator('.block-title').first()).toBeVisible();
+    await expect(page.locator('a.video-item__link[href^="/home/itm"]').first()).toBeVisible();
   });
 });

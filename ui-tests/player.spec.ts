@@ -14,7 +14,7 @@ import { test, expect, openCatalog, firstContinueWatchingLink } from './fixtures
  */
 test.describe('player', () => {
   test('a continue-watching title plays or ends in a known unavailable outcome', async ({ page }) => {
-    await openCatalog(page, 'START');
+    await openCatalog(page, 'startru');
 
     const link = await firstContinueWatchingLink(page);
     test.skip(!link, 'No "Продолжить просмотр" items for this service on this account right now.');

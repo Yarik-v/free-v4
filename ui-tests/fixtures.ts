@@ -1,4 +1,5 @@
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import type { ServiceId } from '../src/api/types';
 
 /**
  * Matches both "Смотреть" (watch) and "Продолжить: HH:MM" (continue watching,
@@ -76,15 +77,17 @@ export const test = base.extend<{ dashboardHome: void }>({
         await banner.locator('.cmpboxbtnno').click();
       });
       await page.goto('/home');
-      const needsLogin = await page
-        .getByPlaceholder('Номер абонемента')
-        .isVisible()
-        .catch(() => false);
+      // Waits for whichever shows up first rather than checking the login field
+      // once: with no cookies the site redirects to /login before `load`, but an
+      // expired saved session can reach /home first and only bounce to the
+      // login page once its first API call is rejected.
+      const loginField = page.getByPlaceholder('Номер абонемента');
+      const watchButton = page.getByRole('button', { name: WATCH_BUTTON_NAME }).first();
+      await loginField.or(watchButton).first().waitFor();
       test.skip(
-        needsLogin,
-        'No session yet — see README "Browser UI tests: session" to generate ui-tests/.auth/storageState.json.',
+        await loginField.isVisible(),
+        'No valid session — see README "Browser UI tests: session" to (re)generate ui-tests/.auth/storageState.json.',
       );
-      await page.getByRole('button', { name: WATCH_BUTTON_NAME }).first().waitFor();
       await use();
     },
     { auto: true },
@@ -92,37 +95,43 @@ export const test = base.extend<{ dashboardHome: void }>({
 });
 
 /**
- * Opens a service's catalog page (e.g. "START" → /vod/startru) via an in-app
+ * Opens a service's catalog page (e.g. `startru` → /vod/startru) via an in-app
  * click, not `page.goto()`: a direct full-page navigation to `/vod/{service}`
  * bounces back to `/home` — confirmed live, the SPA doesn't hydrate that route
- * from a cold load, only from client-side routing. Call after `dashboardHome`
- * (an auto fixture, so any test using `test` from this module already has it).
+ * from a cold load, only from client-side routing. Picks the menu entry by its
+ * href, not its visible name: two entries are both named "Медиатека"
+ * (`mediateka` and `mediatekafree`). Call after `dashboardHome` (an auto
+ * fixture, so any test using `test` from this module already has it).
  */
-export async function openCatalog(page: Page, serviceName: string): Promise<void> {
+export async function openCatalog(page: Page, serviceId: ServiceId): Promise<void> {
   await hoverNavDropdown(page, 'Видеотека');
-  await page.getByRole('link', { name: serviceName, exact: true }).click();
-  await page.waitForURL(/\/vod\//);
+  await page.locator(`header a[href="/vod/${serviceId}"]`).click();
+  await page.waitForURL(`**/vod/${serviceId}`);
 }
 
 /**
- * The first "Продолжить просмотр" card on the current catalog page, if the
- * account has any — real `<a href="/watch/{service}/...">` links, going
- * straight to the player rather than to a details page. `null` when there's
- * nothing in progress for this service right now.
+ * The first card in the current catalog page's "Продолжить просмотр" row, if
+ * the account has one: real `<a class="card-item" href="/watch/{service}/...">`
+ * links going straight to the player rather than to a details page (not all
+ * of them carry a `t=` resume position, so that can't be used to find them).
+ * `null` when the row isn't on the page, i.e. nothing is in progress for this
+ * service right now.
  *
- * Waits (briefly) rather than checking `.count()` immediately: like the
- * dashboard, the catalog page's URL/shell updates before this section's own
- * data fetch resolves, so a bare `.count()` right after `openCatalog()` can
- * read 0 even when the account does have continue-watching items.
+ * Waits for the row's title before deciding: like the dashboard, the catalog
+ * page's shell renders before its rows' data does, so an immediate check can
+ * miss a row that's still loading. Once the row is there, its card must render,
+ * so a broken row fails instead of turning into a skip.
  */
 export async function firstContinueWatchingLink(page: Page): Promise<Locator | null> {
-  const link = page.locator('a[href^="/watch/"]').first();
-  try {
-    await link.waitFor({ timeout: 5_000 });
-    return link;
-  } catch {
-    return null;
-  }
+  const rowTitle = page.locator('.block-title', { hasText: /^\s*Продолжить просмотр\s*$/ });
+  const hasRow = await rowTitle.waitFor({ timeout: 10_000 }).then(
+    () => true,
+    () => false,
+  );
+  if (!hasRow) return null;
+  const link = page.locator('a.card-item[href^="/watch/"]').first();
+  await link.waitFor();
+  return link;
 }
 
 /**
