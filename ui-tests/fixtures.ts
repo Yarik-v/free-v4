@@ -1,5 +1,6 @@
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
 import type { ServiceId } from '../src/api/types';
+import { assertValidUiBaseUrl } from '../src/config';
 
 /**
  * Matches both "Смотреть" (watch) and "Продолжить: HH:MM" (continue watching,
@@ -67,6 +68,7 @@ export function radioStationLinks(page: Page): Locator {
 export const test = base.extend<{ dashboardHome: void }>({
   dashboardHome: [
     async ({ page }, use) => {
+      assertValidUiBaseUrl();
       // A consentmanager.net cookie banner slides up over the bottom ~260px of
       // the page right after load and intercepts every click there (tabs, the
       // radio play button). Whenever it's visible before an action, this

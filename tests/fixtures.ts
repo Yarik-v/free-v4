@@ -1,6 +1,6 @@
 import { test as base, expect, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { FreeApiClient } from '../src/api/client';
-import { fixturePageSlug } from '../src/config';
+import { assertValidApiHost, fixturePageSlug } from '../src/config';
 import type {
   Block,
   ContentCard,
@@ -46,6 +46,8 @@ interface Fixtures {
 }
 
 interface WorkerFixtures {
+  /** Auto: fails every API test with one clear message if `API_HOST` isn't an allowed host. */
+  validApiHost: void;
   workerRequest: APIRequestContext;
   workerApi: FreeApiClient;
   /** GET /pages/{FIXTURE_PAGE_SLUG}, fetched once per worker. */
@@ -91,6 +93,14 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
   api: async ({ request }, use) => {
     await use(new FreeApiClient(request));
   },
+
+  validApiHost: [
+    async ({}, use) => {
+      assertValidApiHost();
+      await use();
+    },
+    { scope: 'worker', auto: true },
+  ],
 
   workerRequest: [
     async ({ playwright }, use, workerInfo) => {
