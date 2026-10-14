@@ -1,10 +1,12 @@
-import type { FullConfig, FullResult, Reporter, Suite } from '@playwright/test/reporter';
+import type { FullConfig, FullResult, Reporter, Suite, TestError } from '@playwright/test/reporter';
 import {
   collectRunSummary,
   describeTargets,
+  formatRunError,
   lastAttemptErrors,
   lastAttemptStdout,
   lastAttemptTracePath,
+  runVerdict,
   traceHasSessionCookies,
 } from './runSummary';
 
@@ -12,13 +14,17 @@ import {
  * Minimal reporter for local runs: prints the run's start time and a pass/fail/skip
  * summary, then full detail ONLY for tests that actually failed — no per-passing-test
  * noise, apart from one line per passing test that recorded a `known-issue`
- * annotation. Pairs with `./htmlReport.ts` (same failure data, rendered as a static page);
+ * annotation. Errors outside any test (a spec file that fails to load, a crashed
+ * worker) are printed too, and a run that was interrupted, timed out or had every
+ * test skipped never ends with "No failures." (see `runVerdict`). Pairs with
+ * `./htmlReport.ts` (same failure data, rendered as a static page);
  * neither replaces `use.trace` — a failed test's trace.zip is still written, and its
  * path is printed below so it stays inspectable via `playwright show-trace`.
  */
 export default class FailuresOnlyReporter implements Reporter {
   private startedAt = new Date();
   private rootSuite!: Suite;
+  private runErrors: TestError[] = [];
 
   onBegin(_config: FullConfig, suite: Suite): void {
     this.startedAt = new Date();
@@ -26,11 +32,14 @@ export default class FailuresOnlyReporter implements Reporter {
     console.log(`\nRun started: ${this.startedAt.toLocaleString()} (${describeTargets(suite)})`);
   }
 
-  onEnd(_result: FullResult): void {
-    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = collectRunSummary(
-      this.rootSuite,
-      this.startedAt,
-    );
+  onError(error: TestError): void {
+    this.runErrors.push(error);
+  }
+
+  onEnd(result: FullResult): void {
+    const summary = collectRunSummary(this.rootSuite, this.startedAt);
+    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = summary;
+    const verdict = runVerdict(summary, result.status, this.runErrors.length);
 
     console.log(
       `${tests.length} tests — ${passed} passed, ${skipped} skipped, ${failures.length} failed` +
@@ -38,6 +47,15 @@ export default class FailuresOnlyReporter implements Reporter {
         (knownIssues.length > 0 ? `, ${knownIssues.length} known issue(s)` : '') +
         ` (${durationSec}s)\n`,
     );
+
+    if (this.runErrors.length > 0) {
+      console.log(`ERRORS OUTSIDE TESTS (${this.runErrors.length}) — e.g. a spec file that failed to load:`);
+      for (const error of this.runErrors) {
+        console.log(`\n${'='.repeat(80)}`);
+        for (const line of formatRunError(error).split('\n')) console.log(`  ${line}`);
+      }
+      console.log(`${'='.repeat(80)}\n`);
+    }
 
     if (knownIssues.length > 0) {
       console.log(`KNOWN ISSUES — passed, but hit a documented product problem (${knownIssues.length}):`);
@@ -49,7 +67,7 @@ export default class FailuresOnlyReporter implements Reporter {
     }
 
     if (failures.length === 0) {
-      console.log('No failures.');
+      console.log(verdict.tone === 'ok' ? 'No failures.' : verdict.text);
       return;
     }
 

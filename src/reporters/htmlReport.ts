@@ -1,13 +1,17 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import type { FullConfig, FullResult, Reporter, Suite } from '@playwright/test/reporter';
+import type { FullConfig, FullResult, Reporter, Suite, TestError } from '@playwright/test/reporter';
 import {
   collectRunSummary,
   describeTargets,
+  formatRunError,
   lastAttemptErrors,
   lastAttemptStdout,
   lastAttemptTracePath,
+  runVerdict,
   traceHasSessionCookies,
 } from './runSummary';
+
+const TONE_COLORS = { ok: '#1e7e34', warn: '#b06a00', bad: '#b02a2a' } as const;
 
 const OUT_PATH = 'test-results/latest.html';
 
@@ -19,7 +23,9 @@ function escapeHtml(text: string): string {
  * Single self-contained HTML file, overwritten every run on purpose: this is a
  * quick at-a-glance view of the MOST RECENT run only, not a history — if you need
  * to compare against an earlier failure, that's what terminal scrollback (or
- * re-running) is for. A big red/green status banner with the run time, then one
+ * re-running) is for. A big status banner with the run time (green, amber when
+ * nothing passed, red on failures or a broken run, see `runVerdict`), any errors
+ * raised outside tests, then one
  * card per FAILED test with its full error, code-frame snippet, captured stdout
  * and trace path. Passing tests are only a number in the banner — unlike
  * Playwright's own `html` reporter, this never lists a test that didn't fail,
@@ -28,17 +34,25 @@ function escapeHtml(text: string): string {
 export default class HtmlReporter implements Reporter {
   private startedAt = new Date();
   private rootSuite!: Suite;
+  private runErrors: TestError[] = [];
 
   onBegin(_config: FullConfig, suite: Suite): void {
     this.startedAt = new Date();
     this.rootSuite = suite;
   }
 
-  onEnd(_result: FullResult): void {
-    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = collectRunSummary(
-      this.rootSuite,
-      this.startedAt,
-    );
+  onError(error: TestError): void {
+    this.runErrors.push(error);
+  }
+
+  onEnd(result: FullResult): void {
+    const summary = collectRunSummary(this.rootSuite, this.startedAt);
+    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = summary;
+    const verdict = runVerdict(summary, result.status, this.runErrors.length);
+    const runErrorsHtml = this.runErrors.length
+      ? `<h2 class="section-title section-errors">Errors outside tests — e.g. a spec file that failed to load</h2>` +
+        this.runErrors.map((error) => `<div class="card"><pre>${escapeHtml(formatRunError(error))}</pre></div>`).join('\n')
+      : '';
 
     const knownIssueCards = knownIssues
       .map(
@@ -54,9 +68,7 @@ export default class HtmlReporter implements Reporter {
       ? `<h2 class="section-title">Known issues — passed, but hit a documented product problem</h2>${knownIssueCards}`
       : '';
 
-    const ok = failures.length === 0;
-    const statusColor = ok ? '#1e7e34' : '#b02a2a';
-    const statusText = ok ? 'ALL PASSED' : `${failures.length} FAILED`;
+    const statusColor = TONE_COLORS[verdict.tone];
     const startedLabel = this.startedAt.toLocaleString();
 
     const cards = failures
@@ -120,11 +132,12 @@ export default class HtmlReporter implements Reporter {
   .trace-warning { margin-top: 6px; color: #b06a00; font-weight: 600; }
   pre { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 10px; overflow-x: auto; font-size: 0.85em; white-space: pre-wrap; margin: 8px 0; }
   .empty { color: #1e7e34; font-weight: 600; }
+  .section-errors { color: #b02a2a; }
 </style>
 </head>
 <body>
   <div class="banner">
-    <h1>${statusText}</h1>
+    <h1>${escapeHtml(verdict.text)}</h1>
     <div class="meta">${startedLabel} · ${escapeHtml(describeTargets(this.rootSuite))} · ${durationSec}s</div>
   </div>
   <div class="stats">
@@ -135,7 +148,8 @@ export default class HtmlReporter implements Reporter {
     <div class="stat stat-fail"><div class="stat-num">${failures.length}</div><div class="stat-label">failed</div></div>
     ${knownIssues.length > 0 ? `<div class="stat stat-known"><div class="stat-num">${knownIssues.length}</div><div class="stat-label">known issues</div></div>` : ''}
   </div>
-  ${ok ? '<p class="empty">No failures. ✅</p>' : cards}
+  ${runErrorsHtml}
+  ${verdict.tone === 'ok' ? '<p class="empty">No failures. ✅</p>' : cards}
   ${knownIssuesHtml}
 </body>
 </html>

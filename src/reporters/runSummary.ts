@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from 'node:util';
-import type { Suite, TestCase } from '@playwright/test/reporter';
+import type { FullResult, Suite, TestCase, TestError } from '@playwright/test/reporter';
 
 /**
  * Annotation type a test pushes onto `test.info().annotations` when it passes but
@@ -62,6 +62,33 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
   return { tests, passed, skipped, flaky, failures, knownIssues, durationSec };
 }
 
+export interface RunVerdict {
+  text: string;
+  tone: 'ok' | 'warn' | 'bad';
+}
+
+/**
+ * The one-line verdict both reporters lead with. "No test failed" isn't enough:
+ * a spec file that fails to load stops Playwright from running anything
+ * (confirmed: 0 tests, exit code 1), an interrupted or timed-out run leaves
+ * tests unrun, and an all-skipped run verifies nothing. None of those may read
+ * as green.
+ */
+export function runVerdict(summary: RunSummary, status: FullResult['status'], errorCount: number): RunVerdict {
+  if (summary.failures.length > 0) return { text: `${summary.failures.length} FAILED`, tone: 'bad' };
+  if (status === 'interrupted') return { text: 'RUN INTERRUPTED', tone: 'bad' };
+  if (status === 'timedout') return { text: 'RUN TIMED OUT', tone: 'bad' };
+  if (status !== 'passed' || errorCount > 0) return { text: 'RUN FAILED — errors outside tests', tone: 'bad' };
+  if (summary.passed + summary.flaky === 0) return { text: 'NOTHING PASSED — every test was skipped', tone: 'warn' };
+  return { text: 'ALL PASSED', tone: 'ok' };
+}
+
+/** An error raised outside any test (e.g. a spec file that fails to load), ANSI stripped. */
+export function formatRunError(error: TestError): string {
+  const text = [error.stack ?? error.message ?? error.value ?? 'unknown error', error.snippet].filter(Boolean).join('\n\n');
+  return stripVTControlCharacters(text);
+}
+
 /** The last attempt's errors, message + code-frame snippet, ANSI stripped. Never truncated. */
 export function lastAttemptErrors(test: TestCase): Array<{ message?: string; snippet?: string }> {
   const lastResult = test.results[test.results.length - 1];
@@ -98,12 +125,15 @@ export function traceHasSessionCookies(test: TestCase): boolean {
  * entry per project that actually has tests in this run, from its own `baseURL`.
  */
 export function describeTargets(rootSuite: Suite): string {
-  return rootSuite.suites
+  const targets = rootSuite.suites
     .filter((projectSuite) => projectSuite.allTests().length > 0)
     .map((projectSuite) => {
       const project = projectSuite.project();
       const baseURL = project?.use.baseURL;
-      return `${project?.name}: ${baseURL ? new URL(baseURL).host : 'no baseURL'}`;
-    })
-    .join(' · ');
+      // A malformed UI_BASE_URL/API_HOST is reported by the project's own
+      // fixtures; here it's just shown as-is rather than crashing the reporter.
+      const target = !baseURL ? 'no baseURL' : URL.canParse(baseURL) ? new URL(baseURL).host : baseURL;
+      return `${project?.name}: ${target}`;
+    });
+  return targets.length > 0 ? targets.join(' · ') : 'no tests collected';
 }
