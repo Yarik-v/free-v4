@@ -131,7 +131,9 @@ export async function firstContinueWatchingLink(page: Page): Promise<Locator | n
     () => false,
   );
   if (!hasRow) return null;
-  const link = page.locator('a.card-item[href^="/watch/"]').first();
+  // The row's container is the title's grandparent (title → header bar → row,
+  // the same block structure as the dashboard's rows), so only its own cards count.
+  const link = rowTitle.locator('xpath=../..').locator('a.card-item[href^="/watch/"]').first();
   await link.waitFor();
   return link;
 }
