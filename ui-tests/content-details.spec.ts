@@ -40,8 +40,11 @@ test.describe('content details', () => {
 
     await page.getByText('Трейлеры', { exact: true }).click();
 
-    // Not every title has a trailer, so this doesn't assert one is present —
-    // only that switching tabs works and stays on the same title.
+    // The tab itself must switch: an unchanged URL alone would also pass if the
+    // click did nothing. The URL is checked once the tab has reacted, so a route
+    // change the click triggers has had its chance to land. Not every title has
+    // a trailer, so this doesn't assert one is present.
+    await expect(page.locator('.tabs .item.active', { hasText: 'Трейлеры' })).toBeVisible();
     expect(page.url()).toBe(url);
   });
 
