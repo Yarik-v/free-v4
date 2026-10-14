@@ -1,4 +1,4 @@
-import { test, expect, WATCH_BUTTON_NAME } from './fixtures';
+import { test, expect } from './fixtures';
 
 /**
  * Smoke coverage for the dashboard at /home. Proves the browser project works
@@ -13,12 +13,11 @@ test.describe('/home — dashboard', () => {
     await expect(page.getByPlaceholder('Поиск')).toBeVisible();
   });
 
-  test('renders the hero slider with real title cards', async ({ page }) => {
-    // "Продолжить: HH:MM" instead of "Смотреть" on titles this account already
-    // has watch progress on — both are valid, this is a real subscriber session.
-    const watchButtons = page.getByRole('button', { name: WATCH_BUTTON_NAME });
-    await expect(watchButtons.first()).toBeVisible();
-    expect(await watchButtons.count()).toBeGreaterThan(0);
+  test('renders the hero slider with a real title on the current slide', async ({ page }) => {
+    // The dashboardHome fixture already waited for a watch button, so checking
+    // for one here could never fail on its own. This checks what the fixture
+    // doesn't: the slide on screen carries a real, non-empty title.
+    await expect(page.locator('.swiper-slide-active h2')).not.toBeEmpty();
   });
 
   test('slider pagination advances to the next slide', async ({ page }) => {
