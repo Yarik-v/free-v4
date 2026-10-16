@@ -38,6 +38,30 @@ cleanly run alone) rather than a clear rejection. If a `browser-ui` failure show
 from a full `npm test` run, re-run just that project
 (`npx playwright test --project=browser-ui`) before treating it as a real bug.
 
+### Reading the report
+
+Locally, results go to the terminal and to `test-results/latest.html` (`npm run report`).
+Both list only what needs attention: passing tests are just a count. The headline is
+one of:
+
+- **ALL PASSED** (green): every test that ran passed. The usual handful of skips is
+  expected. These tests need live data the dashboard doesn't always have.
+- **NOTHING PASSED — every test was skipped** (amber): nothing was actually checked,
+  e.g. the browser tests with no valid session.
+- **N FAILED** (red): each failure is listed with its full error, code snippet and
+  trace path. If the run also stopped early, the headline says so, e.g.
+  `2 FAILED — run interrupted, 40 never ran`.
+- **RUN FAILED — errors outside tests** (red): something broke before tests could run,
+  most often a spec file that failed to load. Playwright then runs *nothing*, so the
+  error shown is the whole story.
+- **RUN INTERRUPTED / RUN TIMED OUT** (red): the run was stopped (Ctrl-C, global
+  timeout). "Never ran" counts tests that didn't start, kept apart from real skips.
+
+Two more sections can appear even on a green run. **Known issues** lists tests that
+passed but recorded a documented product problem, e.g. the player silently
+returning to the catalog. **Errors outside tests** is self-explanatory. A
+`browser-ui` trace is marked as containing session cookies (see below).
+
 Point the API project at a different environment by setting `API_HOST` in `.env`
 (`free-dashboard.kartina.tv`, `free-dashboard-dev.kartina.tv`, or `localhost` — the values
 allowed by the `host` server variable in `spec/openapi.yaml`). Point the browser project at
