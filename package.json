@@ -2,7 +2,7 @@
   "name": "kartina-free-api-tests",
   "version": "1.0.0",
   "private": true,
-  "description": "Playwright + TypeScript API test suite for the Kartina.TV Free API (https://pages.kartina.tv/middleware/docs/free/)",
+  "description": "Playwright + TypeScript tests for the Kartina.TV Free API (https://pages.kartina.tv/middleware/docs/free/) and its web client",
   "type": "module",
   "scripts": {
     "test": "playwright test",
