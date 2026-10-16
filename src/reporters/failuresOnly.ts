@@ -38,11 +38,12 @@ export default class FailuresOnlyReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     const summary = collectRunSummary(this.rootSuite, this.startedAt);
-    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = summary;
+    const { tests, passed, skipped, notRun, flaky, failures, knownIssues, durationSec } = summary;
     const verdict = runVerdict(summary, result.status, this.runErrors.length);
 
     console.log(
       `${tests.length} tests — ${passed} passed, ${skipped} skipped, ${failures.length} failed` +
+        (notRun > 0 ? `, ${notRun} never ran` : '') +
         (flaky > 0 ? `, ${flaky} flaky` : '') +
         (knownIssues.length > 0 ? `, ${knownIssues.length} known issue(s)` : '') +
         ` (${durationSec}s)\n`,
@@ -71,7 +72,7 @@ export default class FailuresOnlyReporter implements Reporter {
       return;
     }
 
-    console.log(`FAILED (${failures.length}):`);
+    console.log(`${verdict.text}:`);
     for (const test of failures) {
       console.log(`\n${'='.repeat(80)}`);
       console.log(`✘ ${test.titlePath().slice(1).join(' › ')}`);

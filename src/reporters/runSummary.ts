@@ -17,7 +17,14 @@ export interface KnownIssue {
 export interface RunSummary {
   tests: TestCase[];
   passed: number;
+  /** Tests that ran and skipped themselves (no matching live data, no session, ...). */
   skipped: number;
+  /**
+   * Tests that never started (the run was interrupted, timed out or stopped by
+   * --max-failures). Playwright reports these as 'skipped' too, but unlike a real
+   * skip they have no result at all, so they're counted apart.
+   */
+  notRun: number;
   flaky: number;
   failures: TestCase[];
   knownIssues: KnownIssue[];
@@ -35,6 +42,7 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
 
   let passed = 0;
   let skipped = 0;
+  let notRun = 0;
   let flaky = 0;
   const failures: TestCase[] = [];
   const knownIssues: KnownIssue[] = [];
@@ -42,7 +50,8 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
   for (const test of tests) {
     switch (test.outcome()) {
       case 'skipped':
-        skipped++;
+        if (test.results.length === 0) notRun++;
+        else skipped++;
         break;
       case 'expected':
         passed++;
@@ -59,7 +68,7 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
     }
   }
 
-  return { tests, passed, skipped, flaky, failures, knownIssues, durationSec };
+  return { tests, passed, skipped, notRun, flaky, failures, knownIssues, durationSec };
 }
 
 export interface RunVerdict {
@@ -75,9 +84,14 @@ export interface RunVerdict {
  * as green.
  */
 export function runVerdict(summary: RunSummary, status: FullResult['status'], errorCount: number): RunVerdict {
-  if (summary.failures.length > 0) return { text: `${summary.failures.length} FAILED`, tone: 'bad' };
-  if (status === 'interrupted') return { text: 'RUN INTERRUPTED', tone: 'bad' };
-  if (status === 'timedout') return { text: 'RUN TIMED OUT', tone: 'bad' };
+  const cutShort = status === 'interrupted' ? 'RUN INTERRUPTED' : status === 'timedout' ? 'RUN TIMED OUT' : '';
+  if (summary.failures.length > 0) {
+    // Failures alone would hide that the run stopped early with tests still unrun.
+    const notRun = summary.notRun > 0 ? `, ${summary.notRun} never ran` : '';
+    const suffix = cutShort ? ` — ${cutShort.toLowerCase()}${notRun}` : notRun;
+    return { text: `${summary.failures.length} FAILED${suffix}`, tone: 'bad' };
+  }
+  if (cutShort) return { text: summary.notRun > 0 ? `${cutShort} — ${summary.notRun} never ran` : cutShort, tone: 'bad' };
   if (status !== 'passed' || errorCount > 0) return { text: 'RUN FAILED — errors outside tests', tone: 'bad' };
   if (summary.passed + summary.flaky === 0) return { text: 'NOTHING PASSED — every test was skipped', tone: 'warn' };
   return { text: 'ALL PASSED', tone: 'ok' };

@@ -47,7 +47,7 @@ export default class HtmlReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     const summary = collectRunSummary(this.rootSuite, this.startedAt);
-    const { tests, passed, skipped, flaky, failures, knownIssues, durationSec } = summary;
+    const { tests, passed, skipped, notRun, flaky, failures, knownIssues, durationSec } = summary;
     const verdict = runVerdict(summary, result.status, this.runErrors.length);
     const runErrorsHtml = this.runErrors.length
       ? `<h2 class="section-title section-errors">Errors outside tests — e.g. a spec file that failed to load</h2>` +
@@ -146,6 +146,7 @@ export default class HtmlReporter implements Reporter {
     <div class="stat stat-skip"><div class="stat-num">${skipped}</div><div class="stat-label">skipped</div></div>
     ${flaky > 0 ? `<div class="stat stat-flaky"><div class="stat-num">${flaky}</div><div class="stat-label">flaky</div></div>` : ''}
     <div class="stat stat-fail"><div class="stat-num">${failures.length}</div><div class="stat-label">failed</div></div>
+    ${notRun > 0 ? `<div class="stat stat-fail"><div class="stat-num">${notRun}</div><div class="stat-label">never ran</div></div>` : ''}
     ${knownIssues.length > 0 ? `<div class="stat stat-known"><div class="stat-num">${knownIssues.length}</div><div class="stat-label">known issues</div></div>` : ''}
   </div>
   ${runErrorsHtml}
