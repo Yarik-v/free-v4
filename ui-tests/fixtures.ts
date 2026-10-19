@@ -143,22 +143,26 @@ export async function firstContinueWatchingLink(page: Page): Promise<Locator | n
  * The dashboard's first title card: a real `<a href="/home/itm?...">` link to a
  * details page (unlike the hero slider's own slides, which are plain buttons
  * with no href). Rows only load their cards once scrolled near the viewport
- * (confirmed live: 20 card links on load, 30 after scrolling one row into view).
- * The first title row can sit below the fold, e.g. under the "Продолжить
- * просмотр" row, so rows are scrolled into view one by one until a card shows up.
+ * (confirmed live: 20 card links on load, 30 after scrolling one row into view),
+ * and the first title row can sit below the fold, e.g. under the "Продолжить
+ * просмотр" row.
+ *
+ * Walks the rows top-down and takes the first card of the first row that loads,
+ * rather than the page's first card link. With lazy loading, a lower row can
+ * load before a higher one, e.g. the "Жанры" row. Its cards are genre
+ * collections ("Комедии"), not titles: no cast, no trailers.
  */
 export async function firstTitleCard(page: Page): Promise<Locator> {
-  const card = page.locator('a.video-item__link[href^="/home/itm"]').first();
   const rows = page.locator('.video-slider');
   await rows.first().waitFor();
   for (const row of (await rows.all()).slice(0, 5)) {
-    if (await card.isVisible()) break;
+    const card = row.locator('a.video-item__link[href^="/home/itm"]').first();
     await row.scrollIntoViewIfNeeded();
-    // A short wait per row: if this row's cards don't appear, move on to the next.
-    await card.waitFor({ timeout: 3_000 }).catch(() => {});
+    // A row with no title cards (e.g. "Продолжить просмотр") just times out here
+    // and the walk moves on to the next row.
+    if (await card.waitFor({ timeout: 5_000 }).then(() => true, () => false)) return card;
   }
-  await card.waitFor();
-  return card;
+  throw new Error('No title card loaded in the first 5 dashboard rows.');
 }
 
 /**
