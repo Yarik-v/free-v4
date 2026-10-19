@@ -112,17 +112,18 @@ export async function openCatalog(page: Page, serviceId: ServiceId): Promise<voi
 }
 
 /**
- * The first card in the current catalog page's "Продолжить просмотр" row, if
- * the account has one: real `<a class="card-item" href="/watch/{service}/...">`
- * links going straight to the player rather than to a details page (not all
- * of them carry a `t=` resume position, so that can't be used to find them).
- * `null` when the row isn't on the page, i.e. nothing is in progress for this
- * service right now.
+ * The first card in the current page's "Продолжить просмотр" row, if the
+ * account has one: real `<a href="/watch/{service}/...">` links going straight
+ * to the player rather than to a details page (not all of them carry a `t=`
+ * resume position, so that can't be used to find them). The row lives on the
+ * dashboard (/home) and, for a service with something in progress, on that
+ * service's catalog page too. `null` when the row isn't on the page, i.e.
+ * nothing is in progress right now.
  *
- * Waits for the row's title before deciding: like the dashboard, the catalog
- * page's shell renders before its rows' data does, so an immediate check can
- * miss a row that's still loading. Once the row is there, its card must render,
- * so a broken row fails instead of turning into a skip.
+ * Waits for the row's title before deciding: the page's shell renders before
+ * its rows' data does, so an immediate check can miss a row that's still
+ * loading. Once the row is there, its card must render, so a broken row fails
+ * instead of turning into a skip.
  */
 export async function firstContinueWatchingLink(page: Page): Promise<Locator | null> {
   const rowTitle = page.locator('.block-title', { hasText: /^\s*Продолжить просмотр\s*$/ });
@@ -132,13 +133,12 @@ export async function firstContinueWatchingLink(page: Page): Promise<Locator | n
   );
   if (!hasRow) return null;
   // The row's container is the title's grandparent (title → header bar → row,
-  // the same block structure as the dashboard's rows), so only its own cards count.
-  const link = rowTitle.locator('xpath=../..').locator('a.card-item[href^="/watch/"]').first();
+  // the same block structure as every other row), so only its own cards count.
+  const link = rowTitle.locator('xpath=../..').locator('a[href^="/watch/"]').first();
   await link.waitFor();
   return link;
 }
 
-/**
 /**
  * The dashboard's first title card: a real `<a href="/home/itm?...">` link to a
  * details page (unlike the hero slider's own slides, which are plain buttons
@@ -161,6 +161,7 @@ export async function firstTitleCard(page: Page): Promise<Locator> {
   return card;
 }
 
+/**
  * Opens the first title's details page (/home/itm?itm=...&path=...) via an
  * in-app click on a real card link. The click needs to be a real, trusted
  * event: a script-dispatched click on the same element is silently ignored by

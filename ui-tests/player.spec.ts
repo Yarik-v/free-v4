@@ -1,23 +1,23 @@
 import { KNOWN_ISSUE_ANNOTATION } from '../src/reporters/runSummary';
-import { test, expect, openCatalog, firstContinueWatchingLink } from './fixtures';
+import { test, expect, firstContinueWatchingLink } from './fixtures';
 
 /**
  * Coverage for opening playback from a "Продолжить просмотр" (continue watching)
- * card, which links straight to the player. Confirmed live, this ends one of
- * three real ways: it plays; it answers "Контент не доступен" (content not
- * available — same shape as the Free API's `playFreeContent` 403 case); or the
- * player hits a fatal stream error and silently bounces back to the catalog
- * with no message at all. Which one a run hits depends on live backend/CDN
- * state, not on this test's code, so all three pass — the test catches a hang
- * or a broken flow — but the silent one is recorded as a known issue so it
- * still shows up in the report.
+ * card on the dashboard, which links straight to the player. Taken from the
+ * dashboard's own row, which covers every service, rather than one service's
+ * catalog page: a catalog only has the row while that service has something in
+ * progress. Confirmed live, this ends one of three real ways: it plays; it answers
+ * "Контент не доступен" (content not available — same shape as the Free API's
+ * `playFreeContent` 403 case); or the player hits a fatal stream error and
+ * silently bounces back to the previous page with no message at all. Which one a
+ * run hits depends on live backend/CDN state, not on this test's code, so all
+ * three pass — the test catches a hang or a broken flow — but the silent one is
+ * recorded as a known issue so it still shows up in the report.
  */
 test.describe('player', () => {
   test('a continue-watching title plays or ends in a known unavailable outcome', async ({ page }) => {
-    await openCatalog(page, 'startru');
-
     const link = await firstContinueWatchingLink(page);
-    test.skip(!link, 'No "Продолжить просмотр" items for this service on this account right now.');
+    test.skip(!link, 'No "Продолжить просмотр" items on this account right now.');
 
     await link!.click();
 
@@ -63,7 +63,7 @@ test.describe('player', () => {
       test.info().annotations.push({
         type: KNOWN_ISSUE_ANNOTATION,
         description:
-          'Player silently returned to the catalog with no message (fatal hls.js manifestLoadError) instead of showing "Контент не доступен".',
+          'Player silently returned to the previous page with no message (fatal hls.js manifestLoadError) instead of showing "Контент не доступен".',
       });
     }
   });
