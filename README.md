@@ -59,7 +59,7 @@ one of:
 
 Two more sections can appear even on a green run. **Known issues** lists tests that
 passed but recorded a documented product problem, e.g. the player silently
-returning to the catalog. **Errors outside tests** is self-explanatory. A
+returning to the previous page. **Errors outside tests** is self-explanatory. A
 `browser-ui` trace is marked as containing session cookies (see below).
 
 Point the API project at a different environment by setting `API_HOST` in `.env`
@@ -104,17 +104,19 @@ not just the host name).
   here; assert on what the UI actually does. Card links are discovered, never
   hardcoded — the same approach `tests/fixtures.ts` uses for live API data — except
   the dashboard's own hero slider, whose slides route via plain buttons with no href
-  (client-side routing); every other grid/row of cards (dashboard blocks, catalog,
-  favorites, search results) is a real `<a>` link.
+  (client-side routing), and the favorites tiles, plain divs that need a real click;
+  every other grid/row of cards (dashboard blocks, catalog, search results) is a real
+  `<a>` link. Dashboard rows load their cards only once scrolled near the viewport,
+  so `firstTitleCard` in `ui-tests/fixtures.ts` scrolls them into view.
   - `dashboard.spec.ts` — `/home` loads, the hero slider and its title blocks render
     with real content, slider pagination works.
   - `content-details.spec.ts` — opening a card shows a details page
     (title/genres/year/description/ratings/cast); the description and trailers tabs
     both work for a movie and a series (which default to different tabs).
-  - `player.spec.ts` — opening a "Продолжить просмотр" title either plays or shows a
-    clear outcome: a "Контент не доступен" message, or (rarer, found via trace
-    inspection) a fatal stream error that silently returns to the catalog with no
-    message at all. That last one still passes but is recorded as a `known-issue`
+  - `player.spec.ts` — opening a title from the dashboard's "Продолжить просмотр"
+    row either plays or shows a clear outcome: a "Контент не доступен" message, or (found
+    via trace inspection) a fatal stream error that silently returns to the previous
+    page with no message at all. That last one still passes but is recorded as a `known-issue`
     annotation, which both local reporters list even on an all-green run.
   - `catalog.spec.ts` — `/vod/{service}` renders real titles for a few differently
     branded services (START, Wink, PREMIER).
