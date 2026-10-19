@@ -38,12 +38,19 @@ test.describe('content details', () => {
     await openFirstTitleDetails(page);
     const url = page.url();
 
-    await page.getByText('Трейлеры', { exact: true }).click();
+    // A title with no trailers keeps the tab in the DOM but hidden (confirmed
+    // live, e.g. genre collections like "Боевики"), and which title comes first
+    // on the dashboard changes, so skip rather than fail when it isn't shown.
+    // Waits for the always-present "Описание" tab first so the tab bar has rendered.
+    await page.locator('.tabs .item', { hasText: /^\s*Описание\s*$/ }).waitFor();
+    const trailersTab = page.locator('.tabs .item', { hasText: /^\s*Трейлеры\s*$/ });
+    test.skip(!(await trailersTab.isVisible()), 'This title has no trailers, so its Трейлеры tab is hidden.');
+
+    await trailersTab.click();
 
     // The tab itself must switch: an unchanged URL alone would also pass if the
     // click did nothing. The URL is checked once the tab has reacted, so a route
-    // change the click triggers has had its chance to land. Not every title has
-    // a trailer, so this doesn't assert one is present.
+    // change the click triggers has had its chance to land.
     await expect(page.locator('.tabs .item.active', { hasText: 'Трейлеры' })).toBeVisible();
     expect(page.url()).toBe(url);
   });
