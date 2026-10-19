@@ -147,22 +147,28 @@ export async function firstContinueWatchingLink(page: Page): Promise<Locator | n
  * and the first title row can sit below the fold, e.g. under the "Продолжить
  * просмотр" row.
  *
- * Walks the rows top-down and takes the first card of the first row that loads,
- * rather than the page's first card link. With lazy loading, a lower row can
- * load before a higher one, e.g. the "Жанры" row. Its cards are genre
- * collections ("Комедии"), not titles: no cast, no trailers.
+ * Walks the rows top-down and takes the first card of the first row that has
+ * title cards, rather than the page's first card link. With lazy loading, a
+ * lower row can load before a higher one, e.g. the "Жанры" row. Its cards are
+ * genre collections ("Комедии"), not titles: no cast, no trailers. Each row is
+ * waited on until it has settled (a title card, or none of its loading
+ * placeholders left: checked live, a loading row shows `.animation--shine`
+ * placeholders and no cards). A slow row is therefore never skipped for a
+ * faster one below it.
  */
 export async function firstTitleCard(page: Page): Promise<Locator> {
   const rows = page.locator('.video-slider');
   await rows.first().waitFor();
   for (const row of (await rows.all()).slice(0, 5)) {
     const card = row.locator('a.video-item__link[href^="/home/itm"]').first();
+    const placeholder = row.locator('.animation--shine').first();
     await row.scrollIntoViewIfNeeded();
-    // A row with no title cards (e.g. "Продолжить просмотр") just times out here
-    // and the walk moves on to the next row.
-    if (await card.waitFor({ timeout: 5_000 }).then(() => true, () => false)) return card;
+    const rowState = async () =>
+      (await card.count()) > 0 ? 'has titles' : (await placeholder.count()) > 0 ? 'loading' : 'no titles';
+    await expect.poll(rowState, { message: 'dashboard row still loading', timeout: 20_000 }).not.toBe('loading');
+    if ((await card.count()) > 0) return card;
   }
-  throw new Error('No title card loaded in the first 5 dashboard rows.');
+  throw new Error('None of the first 5 dashboard rows has title cards.');
 }
 
 /**
