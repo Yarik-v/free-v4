@@ -14,18 +14,21 @@ test.describe('favorites', () => {
     await page.getByRole('link', { name: 'Избранное' }).first().click();
     await page.waitForURL('/favorites');
 
-    // Real account state: skip rather than fail if it has no video favorites
-    // right now. Once the "Видеотеки" section is there, its tiles must render.
-    const videoFavorites = page.locator('.block-title', { hasText: /^\s*Видеотеки\s*$/ });
-    const hasVideoFavorites = await videoFavorites.waitFor({ timeout: 10_000 }).then(
+    // Real account state: skip rather than fail if it has no favorites right
+    // now. Favorites are grouped into sections whose names change with the
+    // site's grouping (one "Видеотеки" section before, one per service such as
+    // "Медиатека" now), so this waits for any section rather than a named one.
+    // Once a section is there, its tiles must render.
+    const anySection = page.locator('.block-title').first();
+    const hasFavorites = await anySection.waitFor({ timeout: 10_000 }).then(
       () => true,
       () => false,
     );
-    test.skip(!hasVideoFavorites, 'This account has no video favorites right now.');
+    test.skip(!hasFavorites, 'This account has no favorites right now.');
 
-    // Grouped by service ("Видеотеки" section); tiles are plain divs, not
-    // real anchors — same "no href" shape as the dashboard's own hero slider
-    // (confirmed live) — so this needs a real click rather than an href.
+    // Tiles are plain divs, not real anchors — same "no href" shape as the
+    // dashboard's own hero slider (confirmed live) — so this needs a real click
+    // rather than an href.
     const tiles = page.locator('.video-grid__item');
     await expect(tiles.first()).toBeVisible();
     expect(await tiles.count()).toBeGreaterThan(0);
