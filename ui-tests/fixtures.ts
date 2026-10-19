@@ -139,19 +139,35 @@ export async function firstContinueWatchingLink(page: Page): Promise<Locator | n
 }
 
 /**
+/**
+ * The dashboard's first title card: a real `<a href="/home/itm?...">` link to a
+ * details page (unlike the hero slider's own slides, which are plain buttons
+ * with no href). Rows only load their cards once scrolled near the viewport
+ * (confirmed live: 20 card links on load, 30 after scrolling one row into view).
+ * The first title row can sit below the fold, e.g. under the "Продолжить
+ * просмотр" row, so rows are scrolled into view one by one until a card shows up.
+ */
+export async function firstTitleCard(page: Page): Promise<Locator> {
+  const card = page.locator('a.video-item__link[href^="/home/itm"]').first();
+  const rows = page.locator('.video-slider');
+  await rows.first().waitFor();
+  for (const row of (await rows.all()).slice(0, 5)) {
+    if (await card.isVisible()) break;
+    await row.scrollIntoViewIfNeeded();
+    // A short wait per row: if this row's cards don't appear, move on to the next.
+    await card.waitFor({ timeout: 3_000 }).catch(() => {});
+  }
+  await card.waitFor();
+  return card;
+}
+
  * Opens the first title's details page (/home/itm?itm=...&path=...) via an
- * in-app click on a real card link. Confirmed live: row/grid cards below the
- * hero slider are real `<a href="/home/itm?...">` links — unlike the hero
- * slider's own slides, which route via plain buttons with no href (see
- * dashboard.spec.ts) — the same "real anchor, not a plain button" shape as
- * the catalog's continue-watching cards. The click needs to be a real,
- * trusted event: a script-dispatched click on the same element is silently
- * ignored by the SPA's router (confirmed live). Call after `dashboardHome`.
+ * in-app click on a real card link. The click needs to be a real, trusted
+ * event: a script-dispatched click on the same element is silently ignored by
+ * the SPA's router (confirmed live). Call after `dashboardHome`.
  */
 export async function openFirstTitleDetails(page: Page): Promise<void> {
-  const link = page.locator('a[href^="/home/itm"]').first();
-  await link.waitFor();
-  await link.click();
+  await (await firstTitleCard(page)).click();
   await page.waitForURL(/\/home\/itm/);
 }
 

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, firstTitleCard } from './fixtures';
 
 /**
  * Smoke coverage for the dashboard at /home. Proves the browser project works
@@ -38,9 +38,9 @@ test.describe('/home — dashboard', () => {
     // `div.block-title`, not headings: every heading on the page is one of the
     // hero slider's own ~20 slide titles, so counting headings proves nothing
     // about the blocks. Asserts a real block plus a real title card instead.
-    // Only the first few blocks render on load (the rest lazy-load on scroll),
-    // so this checks presence rather than a count.
+    // Rows lazy-load their cards on scroll (see firstTitleCard), so this checks
+    // presence rather than a count.
     await expect(page.locator('.block-title').first()).toBeVisible();
-    await expect(page.locator('a.video-item__link[href^="/home/itm"]').first()).toBeVisible();
+    await expect(await firstTitleCard(page)).toBeVisible();
   });
 });
