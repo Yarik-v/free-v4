@@ -38,13 +38,16 @@ test.describe('content details', () => {
     await openFirstTitleDetails(page);
     const url = page.url();
 
-    // A title with no trailers keeps the tab in the DOM but hidden (confirmed
-    // live, e.g. genre collections like "Боевики"), and which title comes first
-    // on the dashboard changes, so skip rather than fail when it isn't shown.
-    // Waits for the always-present "Описание" tab first so the tab bar has rendered.
-    await page.locator('.tabs .item', { hasText: /^\s*Описание\s*$/ }).waitFor();
+    // The tab stays hidden until the title's trailers have loaded, several
+    // seconds after the tab bar itself (confirmed live: still hidden at +3 s,
+    // shown by +6 s), and for a title with no trailers it never shows. So wait
+    // for it, and skip rather than fail only if it never appears.
     const trailersTab = page.locator('.tabs .item', { hasText: /^\s*Трейлеры\s*$/ });
-    test.skip(!(await trailersTab.isVisible()), 'This title has no trailers, so its Трейлеры tab is hidden.');
+    const hasTrailers = await trailersTab.waitFor({ timeout: 10_000 }).then(
+      () => true,
+      () => false,
+    );
+    test.skip(!hasTrailers, 'This title has no trailers, so its Трейлеры tab never showed up.');
 
     await trailersTab.click();
 
