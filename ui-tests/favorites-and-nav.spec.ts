@@ -13,6 +13,10 @@ test.describe('favorites', () => {
   test('shows real favorited titles and opens one', async ({ page }) => {
     await page.getByRole('link', { name: 'Избранное' }).first().click();
     await page.waitForURL('/favorites');
+    // The URL changes before the SPA swaps the view, so the dashboard's own rows
+    // (and their `.block-title`s) can still be on screen for a moment. Wait for
+    // them to go first, so the section check below can only see favorites.
+    await expect(page.locator('.video-slider')).toHaveCount(0);
 
     // Real account state: skip rather than fail if it has no favorites right
     // now. Favorites are grouped into sections whose names change with the
