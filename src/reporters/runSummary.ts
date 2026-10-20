@@ -23,9 +23,10 @@ export interface SkippedTest {
 export interface RunSummary {
   tests: TestCase[];
   passed: number;
-  /** Tests that ran and skipped themselves (no matching live data, no session, ...). */
-  skipped: number;
-  /** The same tests, with the reason each one gave, so the report can say why. */
+  /**
+   * Tests that ran and skipped themselves (no matching live data, no session, ...),
+   * with the reason each one gave, so the report can say why.
+   */
   skippedTests: SkippedTest[];
   /**
    * Tests that never started (the run was interrupted, timed out or stopped by
@@ -49,7 +50,6 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
   const durationSec = ((Date.now() - startedAt.getTime()) / 1000).toFixed(1);
 
   let passed = 0;
-  let skipped = 0;
   let notRun = 0;
   let flaky = 0;
   const failures: TestCase[] = [];
@@ -62,7 +62,6 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
         if (test.results.length === 0) {
           notRun++;
         } else {
-          skipped++;
           const skip = test.annotations.find(({ type }) => type === 'skip' || type === 'fixme');
           skippedTests.push({ test, reason: skip?.description ?? '' });
         }
@@ -82,7 +81,21 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
     }
   }
 
-  return { tests, passed, skipped, skippedTests, notRun, flaky, failures, knownIssues, durationSec };
+  return { tests, passed, skippedTests, notRun, flaky, failures, knownIssues, durationSec };
+}
+
+/**
+ * Skipped tests grouped by their reason, in first-seen order: a mass skip with
+ * one cause (e.g. all 17 browser tests with no session) reads as that one cause
+ * followed by its tests, not 17 copies of the same line.
+ */
+export function skippedByReason(skippedTests: SkippedTest[]): Array<{ reason: string; tests: TestCase[] }> {
+  const groups = new Map<string, TestCase[]>();
+  for (const { test, reason } of skippedTests) {
+    const key = reason || '(no reason given)';
+    groups.set(key, [...(groups.get(key) ?? []), test]);
+  }
+  return [...groups].map(([reason, tests]) => ({ reason, tests }));
 }
 
 export interface RunVerdict {

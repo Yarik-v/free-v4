@@ -59,7 +59,7 @@ one of:
 
 Three more sections can appear even on a green run. **Known issues** lists tests
 that passed but recorded a documented product problem, e.g. the player silently
-returning to the previous page. **Skipped** names every skipped test with the reason
+returning to the previous page. **Skipped** lists every skipped test under the reason
 it gave (no matching live data, no session, ...), so a skip that shouldn't have
 happened is easy to spot. **Errors outside tests** is self-explanatory. A
 `browser-ui` trace is marked as containing session cookies (see below).

@@ -8,6 +8,7 @@ import {
   lastAttemptStdout,
   lastAttemptTracePath,
   runVerdict,
+  skippedByReason,
   traceHasSessionCookies,
 } from './runSummary';
 
@@ -47,7 +48,7 @@ export default class HtmlReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     const summary = collectRunSummary(this.rootSuite, this.startedAt);
-    const { tests, passed, skipped, skippedTests, notRun, flaky, failures, knownIssues, durationSec } = summary;
+    const { tests, passed, skippedTests, notRun, flaky, failures, knownIssues, durationSec } = summary;
     const verdict = runVerdict(summary, result.status, this.runErrors.length);
     const runErrorsHtml = this.runErrors.length
       ? `<h2 class="section-title section-errors">Errors outside tests — e.g. a spec file that failed to load</h2>` +
@@ -69,11 +70,12 @@ export default class HtmlReporter implements Reporter {
       : '';
     const skippedHtml = skippedTests.length
       ? `<h2 class="section-title section-skipped">Skipped (${skippedTests.length})</h2><ul class="skipped">` +
-        skippedTests
+        skippedByReason(skippedTests)
           .map(
-            ({ test, reason }) =>
-              `<li><span class="skipped-title">${escapeHtml(test.titlePath().slice(1).join(' › '))}</span>` +
-              `<br><span class="skipped-reason">${escapeHtml(reason || '(no reason given)')}</span></li>`,
+            ({ reason, tests: group }) =>
+              `<li><span class="skipped-reason">${escapeHtml(reason)}</span><ul>` +
+              group.map((test) => `<li class="skipped-title">${escapeHtml(test.titlePath().slice(1).join(' › '))}</li>`).join('') +
+              '</ul></li>',
           )
           .join('\n') +
         '</ul>'
@@ -147,8 +149,8 @@ export default class HtmlReporter implements Reporter {
   .section-skipped { color: #8a6d00; }
   .skipped { background: white; border-radius: 6px; padding: 10px 18px 10px 36px; margin: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
   .skipped li { margin: 6px 0; }
-  .skipped-title { font-size: 0.9em; }
-  .skipped-reason { color: #666; font-size: 0.85em; }
+  .skipped-reason { color: #444; font-size: 0.9em; font-weight: 600; }
+  .skipped-title { font-size: 0.85em; color: #666; }
 </style>
 </head>
 <body>
@@ -159,7 +161,7 @@ export default class HtmlReporter implements Reporter {
   <div class="stats">
     <div class="stat stat-total"><div class="stat-num">${tests.length}</div><div class="stat-label">tests</div></div>
     <div class="stat stat-pass"><div class="stat-num">${passed}</div><div class="stat-label">passed</div></div>
-    <div class="stat stat-skip"><div class="stat-num">${skipped}</div><div class="stat-label">skipped</div></div>
+    <div class="stat stat-skip"><div class="stat-num">${skippedTests.length}</div><div class="stat-label">skipped</div></div>
     ${flaky > 0 ? `<div class="stat stat-flaky"><div class="stat-num">${flaky}</div><div class="stat-label">flaky</div></div>` : ''}
     <div class="stat stat-fail"><div class="stat-num">${failures.length}</div><div class="stat-label">failed</div></div>
     ${notRun > 0 ? `<div class="stat stat-fail"><div class="stat-num">${notRun}</div><div class="stat-label">never ran</div></div>` : ''}
