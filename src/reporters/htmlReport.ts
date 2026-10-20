@@ -47,7 +47,7 @@ export default class HtmlReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     const summary = collectRunSummary(this.rootSuite, this.startedAt);
-    const { tests, passed, skipped, notRun, flaky, failures, knownIssues, durationSec } = summary;
+    const { tests, passed, skipped, skippedTests, notRun, flaky, failures, knownIssues, durationSec } = summary;
     const verdict = runVerdict(summary, result.status, this.runErrors.length);
     const runErrorsHtml = this.runErrors.length
       ? `<h2 class="section-title section-errors">Errors outside tests — e.g. a spec file that failed to load</h2>` +
@@ -66,6 +66,17 @@ export default class HtmlReporter implements Reporter {
       .join('\n');
     const knownIssuesHtml = knownIssues.length
       ? `<h2 class="section-title">Known issues — passed, but hit a documented product problem</h2>${knownIssueCards}`
+      : '';
+    const skippedHtml = skippedTests.length
+      ? `<h2 class="section-title section-skipped">Skipped (${skippedTests.length})</h2><ul class="skipped">` +
+        skippedTests
+          .map(
+            ({ test, reason }) =>
+              `<li><span class="skipped-title">${escapeHtml(test.titlePath().slice(1).join(' › '))}</span>` +
+              `<br><span class="skipped-reason">${escapeHtml(reason || '(no reason given)')}</span></li>`,
+          )
+          .join('\n') +
+        '</ul>'
       : '';
 
     const statusColor = TONE_COLORS[verdict.tone];
@@ -133,6 +144,11 @@ export default class HtmlReporter implements Reporter {
   pre { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 10px; overflow-x: auto; font-size: 0.85em; white-space: pre-wrap; margin: 8px 0; }
   .empty { color: #1e7e34; font-weight: 600; }
   .section-errors { color: #b02a2a; }
+  .section-skipped { color: #8a6d00; }
+  .skipped { background: white; border-radius: 6px; padding: 10px 18px 10px 36px; margin: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .skipped li { margin: 6px 0; }
+  .skipped-title { font-size: 0.9em; }
+  .skipped-reason { color: #666; font-size: 0.85em; }
 </style>
 </head>
 <body>
@@ -152,6 +168,7 @@ export default class HtmlReporter implements Reporter {
   ${runErrorsHtml}
   ${verdict.tone === 'ok' ? '<p class="empty">No failures. ✅</p>' : cards}
   ${knownIssuesHtml}
+  ${skippedHtml}
 </body>
 </html>
 `;

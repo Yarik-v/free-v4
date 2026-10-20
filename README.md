@@ -57,9 +57,11 @@ one of:
 - **RUN INTERRUPTED / RUN TIMED OUT** (red): the run was stopped (Ctrl-C, global
   timeout). "Never ran" counts tests that didn't start, kept apart from real skips.
 
-Two more sections can appear even on a green run. **Known issues** lists tests that
-passed but recorded a documented product problem, e.g. the player silently
-returning to the previous page. **Errors outside tests** is self-explanatory. A
+Three more sections can appear even on a green run. **Known issues** lists tests
+that passed but recorded a documented product problem, e.g. the player silently
+returning to the previous page. **Skipped** names every skipped test with the reason
+it gave (no matching live data, no session, ...), so a skip that shouldn't have
+happened is easy to spot. **Errors outside tests** is self-explanatory. A
 `browser-ui` trace is marked as containing session cookies (see below).
 
 Point the API project at a different environment by setting `API_HOST` in `.env`

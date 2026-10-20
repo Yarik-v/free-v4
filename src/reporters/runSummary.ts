@@ -14,11 +14,19 @@ export interface KnownIssue {
   description: string;
 }
 
+export interface SkippedTest {
+  test: TestCase;
+  /** The `test.skip(condition, reason)` text, or '' if the skip gave none. */
+  reason: string;
+}
+
 export interface RunSummary {
   tests: TestCase[];
   passed: number;
   /** Tests that ran and skipped themselves (no matching live data, no session, ...). */
   skipped: number;
+  /** The same tests, with the reason each one gave, so the report can say why. */
+  skippedTests: SkippedTest[];
   /**
    * Tests that never started (the run was interrupted, timed out or stopped by
    * --max-failures). Playwright reports these as 'skipped' too, but unlike a real
@@ -46,12 +54,18 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
   let flaky = 0;
   const failures: TestCase[] = [];
   const knownIssues: KnownIssue[] = [];
+  const skippedTests: SkippedTest[] = [];
 
   for (const test of tests) {
     switch (test.outcome()) {
       case 'skipped':
-        if (test.results.length === 0) notRun++;
-        else skipped++;
+        if (test.results.length === 0) {
+          notRun++;
+        } else {
+          skipped++;
+          const skip = test.annotations.find(({ type }) => type === 'skip' || type === 'fixme');
+          skippedTests.push({ test, reason: skip?.description ?? '' });
+        }
         break;
       case 'expected':
         passed++;
@@ -68,7 +82,7 @@ export function collectRunSummary(rootSuite: Suite, startedAt: Date): RunSummary
     }
   }
 
-  return { tests, passed, skipped, notRun, flaky, failures, knownIssues, durationSec };
+  return { tests, passed, skipped, skippedTests, notRun, flaky, failures, knownIssues, durationSec };
 }
 
 export interface RunVerdict {
