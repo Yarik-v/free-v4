@@ -139,6 +139,9 @@ export async function firstContinueWatchingLink(page: Page): Promise<Locator | n
   return link;
 }
 
+/** How long one dashboard row may take to replace its placeholders with cards. */
+const ROW_LOAD_TIMEOUT = 20_000;
+
 /**
  * The dashboard's first title card: a real `<a href="/home/itm?...">` link to a
  * details page (unlike the hero slider's own slides, which are plain buttons
@@ -165,7 +168,11 @@ export async function firstTitleCard(page: Page): Promise<Locator> {
     await row.scrollIntoViewIfNeeded();
     const rowState = async () =>
       (await card.count()) > 0 ? 'has titles' : (await placeholder.count()) > 0 ? 'loading' : 'no titles';
-    await expect.poll(rowState, { message: 'dashboard row still loading', timeout: 20_000 }).not.toBe('loading');
+    // A still-loading row gets its own budget on top of the test's: otherwise
+    // the 30 s test timeout (partly spent on the dashboard itself) usually fires
+    // first and hides this clearer "row still loading" failure.
+    if ((await rowState()) === 'loading') test.info().setTimeout(test.info().timeout + ROW_LOAD_TIMEOUT);
+    await expect.poll(rowState, { message: 'dashboard row still loading', timeout: ROW_LOAD_TIMEOUT }).not.toBe('loading');
     if ((await card.count()) > 0) return card;
   }
   throw new Error('None of the first 5 dashboard rows has title cards.');
