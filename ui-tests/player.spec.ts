@@ -1,12 +1,15 @@
 import { KNOWN_ISSUE_ANNOTATION } from '../src/reporters/runSummary';
-import { test, expect, firstContinueWatchingLink } from './fixtures';
+import { test, expect, firstContinueWatchingLink, openFirstTitleDetails, WATCH_BUTTON_NAME } from './fixtures';
 
 /**
- * Coverage for opening playback from a "Продолжить просмотр" (continue watching)
- * card on the dashboard, which links straight to the player. Taken from the
- * dashboard's own row, which covers every service, rather than one service's
- * catalog page: a catalog only has the row while that service has something in
- * progress. Confirmed live, this ends one of three real ways: it plays; it answers
+ * Coverage for opening playback. Starts from a "Продолжить просмотр" (continue
+ * watching) card on the dashboard, which links straight to the player: taken
+ * from the dashboard's own row, which covers every service, rather than one
+ * service's catalog page, which only has the row while that service has something
+ * in progress. An account with nothing in progress has no such row at all, so
+ * the test then opens the first title's details page and presses its "Смотреть"
+ * button instead, which leads to the same /watch/ player rather than skipping.
+ * Confirmed live, this ends one of three real ways: it plays; it answers
  * "Контент не доступен" (content not available — same shape as the Free API's
  * `playFreeContent` 403 case); or the player hits a fatal stream error and
  * silently bounces back to the previous page with no message at all. Which one a
@@ -15,11 +18,14 @@ import { test, expect, firstContinueWatchingLink } from './fixtures';
  * recorded as a known issue so it still shows up in the report.
  */
 test.describe('player', () => {
-  test('a continue-watching title plays or ends in a known unavailable outcome', async ({ page }) => {
-    const link = await firstContinueWatchingLink(page);
-    test.skip(!link, 'No "Продолжить просмотр" items on this account right now.');
-
-    await link!.click();
+  test('a title opened from the dashboard plays or ends in a known unavailable outcome', async ({ page }) => {
+    const continueLink = await firstContinueWatchingLink(page);
+    if (continueLink) {
+      await continueLink.click();
+    } else {
+      await openFirstTitleDetails(page);
+      await page.getByRole('button', { name: WATCH_BUTTON_NAME }).click();
+    }
 
     // Confirmed live, the player shell (#videoPlayer — a decorative background
     // <video class="w-100"> also exists on this page, hence the id scope) does

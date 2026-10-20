@@ -116,7 +116,8 @@ not just the host name).
     (title/genres/year/description/ratings/cast); the description and trailers tabs
     both work for a movie and a series (which default to different tabs).
   - `player.spec.ts` — opening a title from the dashboard's "Продолжить просмотр"
-    row either plays or shows a clear outcome: a "Контент не доступен" message, or (found
+    row (or, when the account has nothing in progress, from the first title's
+    "Смотреть" button) either plays or shows a clear outcome: a "Контент не доступен" message, or (found
     via trace inspection) a fatal stream error that silently returns to the previous
     page with no message at all. That last one still passes but is recorded as a `known-issue`
     annotation, which both local reporters list even on an all-green run.
